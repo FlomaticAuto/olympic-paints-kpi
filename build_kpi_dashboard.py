@@ -8,6 +8,7 @@ Run manually or via Windows Task Scheduler whenever new PDFs arrive.
 
 import os
 import re
+import shutil
 import subprocess
 import sys
 from datetime import datetime
@@ -498,6 +499,25 @@ def git_push(dashboard_path: Path, n_snaps: int):
         run(["git", "push", "-u", "origin", "master"])
 
 
+# ── ARCHIVING ────────────────────────────────────────────────────────────────
+
+def archive_live_pdfs() -> list[Path]:
+    """Move any Sales_Summary_*.pdf sitting in the live LIVE folder into ARCHIVE.
+    Returns the list of files that were moved."""
+    ARCHIVE.mkdir(parents=True, exist_ok=True)
+    moved = []
+    for f in sorted(LIVE.glob("Sales_Summary_*.pdf")):
+        dest = ARCHIVE / f.name
+        if dest.exists():
+            # Already archived under the same name — skip to avoid overwrite
+            print(f"  [SKIP] Already in archive: {f.name}")
+            continue
+        shutil.move(str(f), str(dest))
+        moved.append(dest)
+        print(f"  → Archived: {f.name}")
+    return moved
+
+
 # ── MAIN ─────────────────────────────────────────────────────────────────────
 
 def main():
@@ -524,6 +544,12 @@ def main():
     print(f"  ✓ Dashboard written → {DASHBOARD}")
 
     git_push(DASHBOARD, len(snapshots))
+
+    # Archive new PDFs only after a successful push
+    moved = archive_live_pdfs()
+    if moved:
+        print(f"  ✓ Archived {len(moved)} new PDF(s) to Daily Reports Archive")
+
     print("  Done.")
 
 
