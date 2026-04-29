@@ -1,0 +1,8 @@
+Daily Reports/
+*.pdf
+*.docx
+*.xlsx
+*.xls
+__pycache__/
+*.pyc
+.env
