@@ -487,6 +487,7 @@ def git_push(dashboard_path: Path, n_snaps: int):
     run(["git", "config", "user.email", "auto@olympic-paints.local"])
     run(["git", "config", "user.name",  "Olympic KPI Bot"])
     run(["git", "add", "KPI Dashboard.html"])
+    run(["git", "add", "index.html"])
     run(["git", "add", "build_kpi_dashboard.py"])
     run(["git", "commit", "-m", msg])
     ok = run(["git", "push", "origin", "master"])
@@ -518,6 +519,8 @@ def main():
 
     html = build_html(snapshots)
     DASHBOARD.write_text(html, encoding="utf-8")
+    # index.html is what GitHub Pages serves from the root
+    (BASE_DIR / "index.html").write_text(html, encoding="utf-8")
     print(f"  ✓ Dashboard written → {DASHBOARD}")
 
     git_push(DASHBOARD, len(snapshots))
