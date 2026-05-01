@@ -9,15 +9,17 @@ Run manually or via Windows Task Scheduler whenever new weekly reports arrive.
 """
 
 import os
+import json
 import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
 
-BASE_DIR      = Path(__file__).parent
-WEEKLY_DIR    = BASE_DIR.parent.parent / "1.Projects" / "KPI Report" / "Weekly Progress"
-DASHBOARD     = BASE_DIR / "KPI Dashboard.html"
-INDEX         = BASE_DIR / "index.html"
+BASE_DIR        = Path(__file__).parent
+WEEKLY_DIR      = BASE_DIR.parent.parent / "1.Projects" / "KPI Report" / "Weekly Progress"
+DASHBOARD       = BASE_DIR / "KPI Dashboard.html"
+INDEX           = BASE_DIR / "index.html"
+WORKSPACE_DASH  = Path(r"C:\Users\quint\workspace-dashboard")
 
 # ── WEEKLY DATA ───────────────────────────────────────────────────────────────
 # Update this block each week from the QuickSight Weekly Sales Report PDFs.
@@ -830,6 +832,100 @@ new Chart(document.getElementById('cProductMix'), {{
     return html
 
 
+# ── KPI STATUS JSON ───────────────────────────────────────────────────────────
+
+def write_kpi_status(generated: str):
+    """Write kpi_status.json to the workspace dashboard directory so the
+    workspace dashboard KPI tab always reflects the latest weekly data."""
+    status = {
+        "report_week": REPORT_WEEK,
+        "report_date": REPORT_DATE,
+        "generated_at": generated,
+        "kpi_dashboard_url": "https://flomaticauto.github.io/olympic-paints-kpi/",
+        "update_history": [
+            {
+                "date": datetime.now().strftime("%Y-%m-%d"),
+                "week": REPORT_WEEK,
+                "by": "build_kpi_dashboard.py",
+                "source_files": [f.name for f in sorted(WEEKLY_DIR.glob("*.pdf"))] if WEEKLY_DIR.exists() else [],
+                "kpis_scored": ["A"],
+                "kpis_missing": ["B", "C", "D", "E"],
+            }
+        ],
+        "headline": {
+            "mtd_sales":        MTD_SALES,
+            "mtd_target":       MTD_TARGET,
+            "mtd_pct":          MTD_PCT_TARGET,
+            "debtors_total":    DEBTORS_TOTAL,
+            "debtors_90d":      DEBTORS_90D,
+            "overdue_60d_pct":  OVERDUE_60D_PCT,
+            "above_rb_avg":     ABOVE_RB_AVG,
+            "above_rb_target":  ABOVE_RB_TARGET,
+            "yoy_apr_pct":      YOY[-1]["yoy_pct"] if YOY else None,
+            "ecom_open_orders": ECOM_TOTAL_ORDERS,
+        },
+        "reps": [
+            {
+                "code": r["code"], "name": r["name"],
+                "sales": r["sales"], "target": r["target"],
+                "pct_target": r["pct"], "yoy": r["yoy"], "rb_pct": r["rb_pct"],
+            }
+            for r in REPS
+        ],
+        "kpi_categories": [
+            {
+                "id":             c["id"],
+                "name":           c["name"],
+                "weight":         c["weight"],
+                "status":         "scored" if c["id"] == "A" else "missing",
+                "data_available": c["id"] == "A",
+                "description":    c["description"],
+                "note": (
+                    "Sales data available from QuickSight. Collections settlement audit still needed."
+                    if c["id"] == "A" else
+                    "Needs: Zoho CRM export of new and reactivated customers per rep."
+                    if c["id"] == "B" else
+                    "Needs: CRM upsell activity log with product, customer, date, evidence."
+                    if c["id"] == "C" else
+                    "Needs: Credit application confirmed + first invoice + CRM log per new account."
+                    if c["id"] == "D" else
+                    "Needs: Attendance lists, training photos, POS compliance evidence per rep."
+                ),
+            }
+            for c in KPI_CATEGORIES
+        ],
+        "data_gaps": [
+            {"id": "CRM_export",   "label": "Zoho CRM Export",         "affects_kpis": ["B","C","D"], "priority": "high",   "description": "Monthly Zoho CRM export per rep showing new/reactivated customers, upsell activities, and new account onboarding."},
+            {"id": "collections",  "label": "Invoice Settlement Audit", "affects_kpis": ["A"],         "priority": "high",   "description": "Per-rep list of which invoices have been settled within 30-60 days. Only settled invoices qualify for KPI A commission."},
+            {"id": "training",     "label": "Training Records",         "affects_kpis": ["E"],         "priority": "medium", "description": "Attendance lists, photos, and reports for key account trainings. Minimum 1 per key account per month."},
+            {"id": "store_visits", "label": "Store Visit Log",          "affects_kpis": ["B"],         "priority": "medium", "description": "Store visit count per rep from Zoho or manual log. QuickSight shows No Data."},
+            {"id": "leads",        "label": "Leads Created",            "affects_kpis": ["B","D"],     "priority": "medium", "description": "Leads created per rep from CRM. QuickSight shows No Data."},
+            {"id": "rb_per_rep",   "label": "Rock Bottom % Per Rep",    "affects_kpis": [],            "priority": "low",    "description": "Rock bottom % by rep (only AP and NP available). Full per-rep margin data needed."},
+        ],
+        "scoreable_weight_pct": 50,
+        "risk_items": [
+            {"item": f"BV below Q2 target by {abs(next(r['yoy'] for r in REPS if r['code']=='BV')):.1f}% YOY", "severity": "high"},
+            {"item": f"NP below Q2 target by {abs(next(r['yoy'] for r in REPS if r['code']=='NP')):.1f}% YOY", "severity": "high"},
+            {"item": f"{len([x for x in RB_BY_PRODUCT if x['rb_pct'] < 0])} product groups trading below rock bottom", "severity": "high"},
+            {"item": "Cassim Tayob customer at -37.14% rock bottom", "severity": "high"},
+            {"item": f"{OVERDUE_60D_PCT}% of debtors overdue >60 days (target <10%)", "severity": "high"},
+            {"item": f"MTD sales {fmt_r(MTD_TARGET - MTD_SALES)} below monthly target", "severity": "medium"},
+            {"item": f"Rock bottom avg {ABOVE_RB_AVG}% vs {ABOVE_RB_TARGET}% target", "severity": "medium"},
+            {"item": "22 e-commerce orders aged 15+ days", "severity": "medium"},
+        ],
+    }
+
+    dest = WORKSPACE_DASH / "kpi_status.json"
+    if WORKSPACE_DASH.exists():
+        dest.write_text(json.dumps(status, indent=2), encoding="utf-8")
+        print(f"  OK kpi_status.json -> {dest}")
+    else:
+        print(f"  [WARN] Workspace dashboard dir not found: {WORKSPACE_DASH}")
+
+    # Also write alongside the KPI dashboard itself
+    (BASE_DIR / "kpi_status.json").write_text(json.dumps(status, indent=2), encoding="utf-8")
+
+
 # ── GIT PUSH ──────────────────────────────────────────────────────────────────
 
 def git_push(path: Path):
@@ -867,6 +963,9 @@ def main():
     DASHBOARD.write_text(html, encoding="utf-8")
     INDEX.write_text(html, encoding="utf-8")
     print(f"  OK Written: {INDEX}")
+
+    generated_ts = datetime.now().strftime("%Y-%m-%d %H:%M UTC")
+    write_kpi_status(generated_ts)
 
     git_push(BASE_DIR)
     print("  Done.")
