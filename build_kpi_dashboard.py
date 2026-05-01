@@ -34,9 +34,15 @@ MTD_TARGET     = 12_814_305.26
 MTD_PCT_TARGET = -0.14   # % vs target (negative = below)
 
 # ── Debtors ──────────────────────────────────────────────────────────────────
-DEBTORS_TOTAL  = 20_922_618.50
-DEBTORS_90D    = 4_495_542.11
-OVERDUE_60D_PCT = 21.49   # % overdue > 60 days
+# Source: Daily_Sales_Report_P_2026-05-01T13_44_14.pdf
+DEBTORS_30D    = 2_253_685.18
+DEBTORS_60D    =   576_130.09
+DEBTORS_90D    =    50_834.99
+DEBTORS_120D   =   232_470.85
+DEBTORS_150D   =   106_258.83
+DEBTORS_180D   =   921_892.21
+DEBTORS_TOTAL  = DEBTORS_30D + DEBTORS_60D + DEBTORS_90D + DEBTORS_120D + DEBTORS_150D + DEBTORS_180D
+OVERDUE_60D_PCT = round((DEBTORS_90D + DEBTORS_120D + DEBTORS_150D + DEBTORS_180D) / DEBTORS_TOTAL * 100, 2) if DEBTORS_TOTAL else 0
 
 # ── Margin ───────────────────────────────────────────────────────────────────
 ABOVE_RB_AVG   = 9.75    # company average rock bottom % (store avg: 4.25%)
@@ -597,14 +603,14 @@ def build_html() -> str:
       <div class="card-title">Debtors &amp; Collections Health</div>
       <div class="card-sub">Outstanding debt position — week ending {REPORT_WEEK}</div>
       <div style="margin-top:20px">
-        <div style="display:flex;gap:16px;flex-wrap:wrap">
+        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px">
           <div style="flex:1;min-width:140px;background:#fff0f0;border-radius:10px;padding:16px;border:1px solid #fcc">
             <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase">Total Debtors</div>
             <div style="font-size:22px;font-weight:800;color:var(--dark);margin-top:4px">{fmt_r(DEBTORS_TOTAL)}</div>
           </div>
           <div style="flex:1;min-width:140px;background:#fff0f0;border-radius:10px;padding:16px;border:1px solid #fcc">
             <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase">Overdue &gt;90 Days</div>
-            <div style="font-size:22px;font-weight:800;color:var(--red);margin-top:4px">{fmt_r(DEBTORS_90D)}</div>
+            <div style="font-size:22px;font-weight:800;color:var(--red);margin-top:4px">{fmt_r(DEBTORS_90D + DEBTORS_120D + DEBTORS_150D + DEBTORS_180D)}</div>
           </div>
           <div style="flex:1;min-width:140px;background:#fff7e6;border-radius:10px;padding:16px;border:1px solid #f4a261">
             <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase">% Overdue &gt;60d</div>
@@ -612,6 +618,22 @@ def build_html() -> str:
             <div style="font-size:11px;color:#c07000;margin-top:4px">Target: &lt;10%</div>
           </div>
         </div>
+        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:6px">Aging Breakdown</div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr style="background:#f2f2f2">
+            <th style="padding:6px 8px;text-align:left;font-weight:700">Bucket</th>
+            <th style="padding:6px 8px;text-align:right;font-weight:700">Amount</th>
+            <th style="padding:6px 8px;text-align:right;font-weight:700">% of Total</th>
+          </tr></thead>
+          <tbody>
+            <tr style="background:#f0fff4"><td style="padding:5px 8px">30 Days</td><td style="padding:5px 8px;text-align:right">{fmt_r(DEBTORS_30D)}</td><td style="padding:5px 8px;text-align:right">{pct_plain(DEBTORS_30D/DEBTORS_TOTAL*100 if DEBTORS_TOTAL else 0)}</td></tr>
+            <tr><td style="padding:5px 8px">60 Days</td><td style="padding:5px 8px;text-align:right">{fmt_r(DEBTORS_60D)}</td><td style="padding:5px 8px;text-align:right">{pct_plain(DEBTORS_60D/DEBTORS_TOTAL*100 if DEBTORS_TOTAL else 0)}</td></tr>
+            <tr style="background:#fff7e6"><td style="padding:5px 8px;color:#c07000;font-weight:600">90 Days</td><td style="padding:5px 8px;text-align:right;color:#c07000;font-weight:600">{fmt_r(DEBTORS_90D)}</td><td style="padding:5px 8px;text-align:right;color:#c07000;font-weight:600">{pct_plain(DEBTORS_90D/DEBTORS_TOTAL*100 if DEBTORS_TOTAL else 0)}</td></tr>
+            <tr style="background:#fff0f0"><td style="padding:5px 8px;color:#c00;font-weight:600">120 Days</td><td style="padding:5px 8px;text-align:right;color:#c00;font-weight:600">{fmt_r(DEBTORS_120D)}</td><td style="padding:5px 8px;text-align:right;color:#c00;font-weight:600">{pct_plain(DEBTORS_120D/DEBTORS_TOTAL*100 if DEBTORS_TOTAL else 0)}</td></tr>
+            <tr style="background:#fff0f0"><td style="padding:5px 8px;color:#c00;font-weight:600">150 Days</td><td style="padding:5px 8px;text-align:right;color:#c00;font-weight:600">{fmt_r(DEBTORS_150D)}</td><td style="padding:5px 8px;text-align:right;color:#c00;font-weight:600">{pct_plain(DEBTORS_150D/DEBTORS_TOTAL*100 if DEBTORS_TOTAL else 0)}</td></tr>
+            <tr style="background:#fff0f0"><td style="padding:5px 8px;color:#c00;font-weight:700">180 Days</td><td style="padding:5px 8px;text-align:right;color:#c00;font-weight:700">{fmt_r(DEBTORS_180D)}</td><td style="padding:5px 8px;text-align:right;color:#c00;font-weight:700">{pct_plain(DEBTORS_180D/DEBTORS_TOTAL*100 if DEBTORS_TOTAL else 0)}</td></tr>
+          </tbody>
+        </table>
         <p style="margin-top:16px;font-size:12px;color:var(--muted);line-height:1.6">
           Collections are a qualifying condition for KPI A commission.
           Only invoices settled within 30–60 days qualify under the KPI Agreement.
@@ -857,7 +879,12 @@ def write_kpi_status(generated: str):
             "mtd_target":       MTD_TARGET,
             "mtd_pct":          MTD_PCT_TARGET,
             "debtors_total":    DEBTORS_TOTAL,
+            "debtors_30d":      DEBTORS_30D,
+            "debtors_60d":      DEBTORS_60D,
             "debtors_90d":      DEBTORS_90D,
+            "debtors_120d":     DEBTORS_120D,
+            "debtors_150d":     DEBTORS_150D,
+            "debtors_180d":     DEBTORS_180D,
             "overdue_60d_pct":  OVERDUE_60D_PCT,
             "above_rb_avg":     ABOVE_RB_AVG,
             "above_rb_target":  ABOVE_RB_TARGET,
