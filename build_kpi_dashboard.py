@@ -1,555 +1,874 @@
 """
 build_kpi_dashboard.py
-Reads all Sales_Summary_*.pdf snapshots, extracts KPI data,
-regenerates KPI Dashboard.html, then commits and pushes to GitHub.
+Builds the Olympic Paints Weekly KPI Dashboard from the Weekly Progress folder.
+Data is sourced from QuickSight-generated PDFs in the Weekly Progress folder.
+Because QuickSight PDFs render charts as images (not extractable text), the key
+figures are maintained here as structured data and updated weekly.
 
-Run manually or via Windows Task Scheduler whenever new PDFs arrive.
+Run manually or via Windows Task Scheduler whenever new weekly reports arrive.
 """
 
 import os
-import re
-import shutil
 import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
 
-# ── pip-install pdfplumber on first run ──────────────────────────────────────
-try:
-    import pdfplumber
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "pdfplumber", "-q"])
-    import pdfplumber
+BASE_DIR      = Path(__file__).parent
+WEEKLY_DIR    = BASE_DIR.parent.parent / "1.Projects" / "KPI Report" / "Weekly Progress"
+DASHBOARD     = BASE_DIR / "KPI Dashboard.html"
+INDEX         = BASE_DIR / "index.html"
 
-BASE_DIR   = Path(__file__).parent
-ARCHIVE    = BASE_DIR / "Daily Reports" / "Daily Reports Archive"
-LIVE       = BASE_DIR / "Daily Reports"
-DASHBOARD  = BASE_DIR / "KPI Dashboard.html"
+# ── WEEKLY DATA ───────────────────────────────────────────────────────────────
+# Update this block each week from the QuickSight Weekly Sales Report PDFs.
+# Source: Weekly Progress folder — week ending 25 April 2026
 
-# ── helpers ──────────────────────────────────────────────────────────────────
+REPORT_WEEK   = "25 April 2026"
+REPORT_DATE   = "2026-04-25"
 
-def find_snapshots():
-    """Return sorted list of (date, path) for every Sales_Summary PDF."""
-    pdfs = []
-    for folder in [ARCHIVE, LIVE]:
-        if folder.exists():
-            for f in folder.glob("Sales_Summary_*.pdf"):
-                m = re.search(r"(\d{4}-\d{2}-\d{2})", f.name)
-                if m:
-                    dt = datetime.strptime(m.group(1), "%Y-%m-%d")
-                    pdfs.append((dt, f))
-    pdfs.sort(key=lambda x: x[0])
-    return pdfs
+# ── Sales & Target (from Weekly_Sales_Report__2026-04-25T07_56_05.pdf) ─────
+MTD_SALES     = 11_444_651.93
+MTD_TARGET    = 12_814_305.26
+MTD_PCT_TARGET = -10.69   # % vs target (negative = below)
 
+# ── Debtors ──────────────────────────────────────────────────────────────────
+DEBTORS_TOTAL  = 22_019_499.10
+DEBTORS_90D    = 4_848_337.02
+OVERDUE_60D_PCT = 22.02   # % overdue > 60 days
 
-def extract_kpi(path: Path) -> dict:
-    """Pull key numbers from a Sales_Summary PDF via text extraction."""
-    data = {"path": str(path), "date": None,
-            "mtd_sales": None, "debtors": None,
-            "overdue_amt": None, "overdue_pct": None,
-            "above_rb": None,
-            "aboo_pct": None, "amit_pct": None,
-            "bhadresh_pct": None, "nikhil_pct": None,
-            "credits_total": None}
+# ── Margin ───────────────────────────────────────────────────────────────────
+ABOVE_RB_AVG   = 5.26    # company average rock bottom %
+ABOVE_RB_TARGET = 15.0   # target
 
-    def clean(s):
-        return re.sub(r"[R\s,]", "", s or "")
+# ── Rep MTD Performance ───────────────────────────────────────────────────────
+REPS = [
+    {"code": "AC", "name": "Aboo Cassim",     "sales": 1_502_958.98, "target": 1_160_055.78, "pct": 22.82,  "rb_pct": None,  "q2_target": 2_756_633.76,  "yoy": -29.12, "orders_approved": None},
+    {"code": "AP", "name": "Amit Patel",      "sales": 1_645_605.58, "target": 1_582_503.57, "pct": 3.83,   "rb_pct": 8.85,  "q2_target": 2_336_788.38,  "yoy": -8.45,  "orders_approved": 370_105},
+    {"code": "BV", "name": "Bhadresh Vallabh","sales": 3_831_481.27, "target": 5_131_146.02, "pct": -33.92, "rb_pct": None,  "q2_target": 10_753_757.53, "yoy": -53.68, "orders_approved": 1_485_543},
+    {"code": "NP", "name": "Nikhil Panchal",  "sales": 4_443_840.97, "target": 4_940_599.89, "pct": -11.18, "rb_pct": 8.82,  "q2_target": 9_896_452.05,  "yoy": -41.63, "orders_approved": 901_029},
+    {"code": "BM", "name": "Byron Minnie",    "sales": 20_765.13,    "target": None,          "pct": None,   "rb_pct": None,  "q2_target": None,           "yoy": None,   "orders_approved": None},
+]
 
-    try:
-        with pdfplumber.open(path) as pdf:
-            text = "\n".join(page.extract_text() or "" for page in pdf.pages)
-    except Exception as e:
-        print(f"  [WARN] Could not read {path.name}: {e}")
-        return data
+# ── YOY Monthly Comparison ────────────────────────────────────────────────────
+YOY = [
+    {"month": "Jan", "sales_2025": 7_297_999.94, "sales_2026": 7_617_705.29, "yoy_pct": 4.38},
+    {"month": "Feb", "sales_2025": 8_251_126.12, "sales_2026": 9_875_474.09, "yoy_pct": 19.69},
+    {"month": "Mar", "sales_2025": 11_342_188.94,"sales_2026": 10_504_834.10,"yoy_pct": -7.38},
+    {"month": "Apr", "sales_2025": 9_857_157.89, "sales_2026": 11_444_651.93,"yoy_pct": 16.10},
+]
 
-    # Date from filename
-    m = re.search(r"(\d{4}-\d{2}-\d{2})", path.name)
-    if m:
-        data["date"] = m.group(1)
+# ── Product Mix by Revenue % ──────────────────────────────────────────────────
+PRODUCT_MIX = [
+    {"group": "Enamel",     "pct": 31, "avg_sale": 133_140},
+    {"group": "QD Enamel",  "pct": 29, "avg_sale": 124_130},
+    {"group": "Accessories","pct": 13, "avg_sale": 54_890},
+    {"group": "Sealers",    "pct": 10, "avg_sale": 42_100},
+    {"group": "PVA",        "pct": 7,  "avg_sale": 31_340},
+    {"group": "Roof",       "pct": 6,  "avg_sale": 25_750},
+    {"group": "Primer",     "pct": 1,  "avg_sale": 3_630},
+]
 
-    # MTD sales — "ivnett\n<number>" or "ivnett (Sum)\n" pattern
-    for pattern in [
-        r"ivnett\s*\n\s*([\d,]+\.?\d*)",
-        r"Total Monthly Sales\s*\n.*?\n\s*([\d,]+\.?\d*)",
-    ]:
-        m = re.search(pattern, text)
-        if m:
-            data["mtd_sales"] = float(clean(m.group(1)))
-            break
+# ── Rock Bottom % by Product Group ────────────────────────────────────────────
+RB_BY_PRODUCT = [
+    {"group": "Ultimate Shine",     "rb_pct": -24.44},
+    {"group": "Membrane",           "rb_pct": -19.32},
+    {"group": "Etch Primer",        "rb_pct": -8.63},
+    {"group": "Rust Remover",       "rb_pct": -6.81},
+    {"group": "Distemper",          "rb_pct": -6.15},
+    {"group": "LIBERTY",            "rb_pct": -4.82},
+    {"group": "Kalahari Contractors","rb_pct": -4.65},
+    {"group": "Wood Primer",        "rb_pct": -4.52},
+    {"group": "7 in 1 PVA",         "rb_pct": -3.44},
+    {"group": "Road Marking",       "rb_pct": -3.10},
+    {"group": "All In One",         "rb_pct": -2.72},
+    {"group": "Hi Hiding Contr",    "rb_pct": -1.73},
+    {"group": "Oxide",              "rb_pct": -1.69},
+    {"group": "Eclipse PVA",        "rb_pct": -0.37},
+    {"group": "RainProof",          "rb_pct": 0.48},
+    {"group": "Rugged Beauty",      "rb_pct": 0.92},
+    {"group": "High Gloss",         "rb_pct": 0.93},
+    {"group": "Fibre Restore",      "rb_pct": 1.27},
+    {"group": "Master Decorators",  "rb_pct": 1.31},
+    {"group": "Suburban Bliss",     "rb_pct": 1.40},
+    {"group": "Primer",             "rb_pct": 1.77},
+    {"group": "Putty",              "rb_pct": 1.96},
+    {"group": "Thinner",            "rb_pct": 1.99},
+    {"group": "Plaster n Tile Bond","rb_pct": 2.19},
+    {"group": "Universal Roof Paint","rb_pct": 2.77},
+    {"group": "Sanding Sealer",     "rb_pct": 3.23},
+    {"group": "Stainer",            "rb_pct": 3.66},
+    {"group": "Zinc Phosphate",     "rb_pct": 4.98},
+    {"group": "Pick & Save",        "rb_pct": 5.18},
+    {"group": "Wood Varnish",       "rb_pct": 5.22},
+    {"group": "Natural Elegance",   "rb_pct": 5.33},
+    {"group": "Decor",              "rb_pct": 5.34},
+    {"group": "Universal Undercoat","rb_pct": 5.45},
+    {"group": "Roof & Stoep",       "rb_pct": 5.60},
+    {"group": "FB Dressing",        "rb_pct": 6.33},
+    {"group": "Bonding Liquid",     "rb_pct": 6.65},
+    {"group": "3 in 1 Roof",        "rb_pct": 6.80},
+    {"group": "Plaster Primer",     "rb_pct": 7.16},
+    {"group": "3 in 1 Gripcoat",    "rb_pct": 7.70},
+    {"group": "Q.D. Primer",        "rb_pct": 9.84},
+    {"group": "Carbolineum",        "rb_pct": 10.57},
+]
 
-    # Outstanding debtors
-    m = re.search(r"Outstanding Debtors\s*\n\s*([\d,]+\.?\d*)", text)
-    if m:
-        data["debtors"] = float(clean(m.group(1)))
+# ── Customers at Risk (below rock bottom) ─────────────────────────────────────
+CUSTOMERS_AT_RISK = [
+    {"name": "Cassim Tayob",         "rb_pct": -37.14},
+    {"name": "Patels Hardware",      "rb_pct": -17.15},
+    {"name": "Dainty's Wholesale",   "rb_pct": -12.79},
+    {"name": "Dada's World of Hard.","rb_pct": -11.78},
+    {"name": "HGM Steelboys CC",     "rb_pct": -2.09},
+    {"name": "Brits Hardware & Gla.","rb_pct": 4.12},
+    {"name": "Del Piero Trading CC", "rb_pct": 1.58},
+    {"name": "Myka Trade 2",         "rb_pct": 5.30},
+]
 
-    # Overdue >90 days amount
-    m = re.search(r"Outstanding Over 90 Days\s*\n\s*R?([\d,]+\.?\d*)", text)
-    if m:
-        data["overdue_amt"] = float(clean(m.group(1)))
+# ── E-Commerce Orders (from Daily_Eccomerce_Repo_2026-04-21) ─────────────────
+ECOM_TOTAL_ORDERS = 69
+ECOM_TOTAL_QTY    = 123
+ECOM_OVERDUE      = 0   # per "Overdue Status" column (0 flagged as formally overdue)
+ECOM_AGING = {
+    "1-5 days":   12,
+    "6-9 days":   21,
+    "10-14 days": 14,
+    "15+ days":   22,
+}  # approximate from the data (19 orders at 19 days, multiple at 15+, etc.)
 
-    # Overdue %
-    m = re.search(r"% Overdue > 90 Days\s*\n\s*([\d.]+)%", text)
-    if m:
-        data["overdue_pct"] = float(m.group(1))
+# ── KPI Agreement Categories ──────────────────────────────────────────────────
+KPI_CATEGORIES = [
+    {"id": "A", "name": "Sales Growth & Collections", "weight": 50,
+     "description": "Must exceed 10% growth vs prior-year baseline. Settled invoices only."},
+    {"id": "B", "name": "Customer Development & CRM", "weight": 20,
+     "description": "Min 5 new/reactivated customers in CRM per month. Hit or Miss."},
+    {"id": "C", "name": "Product Development",        "weight": 10,
+     "description": "Min 1 upsell/week (4-5/month) of focus products."},
+    {"id": "D", "name": "New Customer Onboarding",    "weight": 10,
+     "description": "Min 2 new trading customers onboarded per month."},
+    {"id": "E", "name": "Training & Merchandising",   "weight": 10,
+     "description": "1 training per key account per month + POS branding visible. Hit or Miss."},
+]
 
-    # Above rock bottom
-    m = re.search(r"Above/Below Rock Bottom\s*\n\s*([\d.]+)%", text)
-    if m:
-        data["above_rb"] = float(m.group(1))
-
-    # Rep attainment %
-    for rep, key in [("Aboo", "aboo_pct"), ("Amit", "amit_pct"),
-                     ("Bhadresh", "bhadresh_pct"), ("Nikhil", "nikhil_pct")]:
-        # Look for pattern like "351,523\n33.19%"
-        pat = rf"{rep}[^%\n]{{0,60}}?\n\s*([\d.]+)%"
-        m = re.search(pat, text)
-        if m:
-            data[key] = float(m.group(1))
-
-    # Credits total (absolute value of sum at bottom of credits table)
-    credits = re.findall(r"-R([\d,]+)", text)
-    if credits:
-        total = sum(float(c.replace(",", "")) for c in credits)
-        data["credits_total"] = total
-
-    return data
-
+# ── HELPERS ────────────────────────────────────────────────────────────────────
 
 def fmt_r(val, decimals=0):
-    """Format as South African Rand string."""
-    if val is None:
-        return "—"
-    if val >= 1_000_000:
-        return f"R{val/1_000_000:.2f}M"
-    if val >= 1_000:
-        return f"R{val/1_000:.1f}K"
+    if val is None: return "—"
+    if val >= 1_000_000: return f"R{val/1_000_000:.2f}M"
+    if val >= 1_000:     return f"R{val/1_000:.1f}K"
     return f"R{val:.{decimals}f}"
 
+def pct_str(val):
+    if val is None: return "—"
+    return f"{val:+.1f}%" if val != 0 else "0.0%"
 
-def pct(val):
-    return f"{val:.1f}%" if val is not None else "—"
+def pct_plain(val):
+    if val is None: return "—"
+    return f"{val:.1f}%"
 
+def js_arr(vals):
+    return "[" + ",".join("null" if v is None else str(round(v, 2)) for v in vals) + "]"
 
-# ── HTML GENERATION ──────────────────────────────────────────────────────────
+def rb_color_class(pct):
+    if pct is None:  return "neutral"
+    if pct >= 8:     return "green"
+    if pct >= 0:     return "amber"
+    return "red"
 
-def build_html(snapshots: list[dict]) -> str:
+def sales_color_class(pct):
+    if pct is None:  return "neutral"
+    if pct >= 0:     return "green"
+    if pct >= -15:   return "amber"
+    return "red"
+
+# ── HTML BUILD ─────────────────────────────────────────────────────────────────
+
+def build_html() -> str:
     generated = datetime.now().strftime("%d %B %Y %H:%M")
-    n_snaps   = len(snapshots)
-    latest    = snapshots[-1] if snapshots else {}
-    earliest  = snapshots[0]  if snapshots else {}
 
-    # Build JS arrays
-    snap_labels = [s["date"][5:] if s.get("date") else "?" for s in snapshots]  # MM-DD
-    # Pretty labels
-    snap_labels_pretty = []
-    for s in snapshots:
-        if s.get("date"):
-            dt = datetime.strptime(s["date"], "%Y-%m-%d")
-            snap_labels_pretty.append(dt.strftime("%-d %b") if sys.platform != "win32"
-                                      else dt.strftime("%d %b").lstrip("0"))
+    # Rep table rows
+    rep_rows = ""
+    for r in REPS:
+        if r["target"] is None:
+            pct_bar = '<span class="pill neutral">Internal</span>'
+            pct_cell = "—"
         else:
-            snap_labels_pretty.append("?")
+            cls = sales_color_class(r["pct"])
+            pct_cell = pct_str(r["pct"])
+            pct_bar = f'<span class="pill {cls}">{pct_cell}</span>'
 
-    def js_arr(vals):
-        parts = []
-        for v in vals:
-            parts.append("null" if v is None else str(round(v, 2)))
-        return "[" + ",".join(parts) + "]"
+        rb = r["rb_pct"]
+        rb_cls = rb_color_class(rb)
+        rb_cell = f'<span class="pill {rb_cls}">{pct_plain(rb)}</span>' if rb is not None else '<span class="pill neutral">No data</span>'
 
-    mtd_arr      = js_arr([s.get("mtd_sales")    for s in snapshots])
-    debtors_arr  = js_arr([s.get("debtors")       for s in snapshots])
-    overdue_arr  = js_arr([s.get("overdue_pct")   for s in snapshots])
-    rb_arr       = js_arr([s.get("above_rb")       for s in snapshots])
-    aboo_arr     = js_arr([s.get("aboo_pct")       for s in snapshots])
-    amit_arr     = js_arr([s.get("amit_pct")       for s in snapshots])
-    bhadresh_arr = js_arr([s.get("bhadresh_pct")   for s in snapshots])
-    nikhil_arr   = js_arr([s.get("nikhil_pct")     for s in snapshots])
-    credits_arr  = js_arr([s.get("credits_total")  for s in snapshots])
+        orders = fmt_r(r["orders_approved"])
 
-    labels_js = "[" + ",".join(f'"{l}"' for l in snap_labels_pretty) + "]"
+        # KPI A scoring (sales growth vs prior year baseline)
+        yoy = r["yoy"]
+        if yoy is None:
+            kpi_a = '<span class="pill neutral">—</span>'
+        elif yoy >= 10:
+            kpi_a = f'<span class="pill green">✓ {pct_str(yoy)} YOY</span>'
+        elif yoy >= 0:
+            kpi_a = f'<span class="pill amber">⚠ {pct_str(yoy)} YOY</span>'
+        else:
+            kpi_a = f'<span class="pill red">✗ {pct_str(yoy)} YOY</span>'
 
-    # KPI card values from latest snapshot
-    latest_mtd     = fmt_r(latest.get("mtd_sales"))
-    latest_debtors = fmt_r(latest.get("debtors"))
-    latest_overdue = pct(latest.get("overdue_pct"))
-    latest_rb      = pct(latest.get("above_rb"))
-    latest_date    = latest.get("date", "—")
-    earliest_date  = earliest.get("date", "—")
-
-    # Table rows
-    table_rows = ""
-    for s in snapshots:
-        dt_str = s.get("date", "—")
-        try:
-            dt_nice = datetime.strptime(dt_str, "%Y-%m-%d").strftime("%d %b %Y")
-        except Exception:
-            dt_nice = dt_str
-
-        mtd_v = fmt_r(s.get("mtd_sales"))
-        deb_v = fmt_r(s.get("debtors"))
-        ovd_v = pct(s.get("overdue_pct"))
-        rb_v  = pct(s.get("above_rb"))
-        a_v   = pct(s.get("aboo_pct"))
-        am_v  = pct(s.get("amit_pct"))
-        bh_v  = pct(s.get("bhadresh_pct"))
-        nk_v  = pct(s.get("nikhil_pct"))
-
-        # Colour classes
-        def ovd_cls(v):
-            if v is None: return "neutral"
-            return "green" if v < 10 else ("amber" if v < 15 else "red")
-        def rb_cls(v):
-            if v is None: return "neutral"
-            return "green" if v >= 8 else "amber"
-
-        table_rows += f"""
+        rep_rows += f"""
           <tr>
-            <td><strong>{dt_nice}</strong></td>
-            <td>{mtd_v}</td>
-            <td>{deb_v}</td>
-            <td><span class="pill {ovd_cls(s.get('overdue_pct'))}">{ovd_v}</span></td>
-            <td><span class="pill {rb_cls(s.get('above_rb'))}">{rb_v}</span></td>
-            <td>{a_v}</td><td>{am_v}</td><td>{bh_v}</td><td>{nk_v}</td>
+            <td><strong>{r["code"]}</strong><br><small style="color:var(--muted)">{r["name"]}</small></td>
+            <td>{fmt_r(r["sales"])}</td>
+            <td>{fmt_r(r["target"])}</td>
+            <td>{pct_bar}</td>
+            <td>{rb_cell}</td>
+            <td>{kpi_a}</td>
+            <td><span class="pill neutral" title="CRM data required">⚠ No data</span></td>
+            <td><span class="pill neutral" title="Product dev data required">⚠ No data</span></td>
+            <td><span class="pill neutral" title="New customer data required">⚠ No data</span></td>
+            <td><span class="pill neutral" title="Training data required">⚠ No data</span></td>
+            <td>{orders}</td>
           </tr>"""
+
+    # YOY chart arrays
+    yoy_labels = js_arr(None for _ in [])
+    months = [y["month"] for y in YOY]
+    s25 = [y["sales_2025"] for y in YOY]
+    s26 = [y["sales_2026"] for y in YOY]
+    yoy_pcts = [y["yoy_pct"] for y in YOY]
+    months_js = "[" + ",".join(f'"{m}"' for m in months) + "]"
+    s25_js = js_arr(s25)
+    s26_js = js_arr(s26)
+    yoy_pct_js = js_arr(yoy_pcts)
+
+    # Rep chart arrays
+    rep_names_js = "[" + ",".join(f'"{r["name"]}"' for r in REPS) + "]"
+    rep_sales_js = js_arr([r["sales"] for r in REPS])
+    rep_target_js = js_arr([r["target"] for r in REPS])
+
+    # RB product chart (top 15 worst + best, sorted)
+    rb_sorted = sorted(RB_BY_PRODUCT, key=lambda x: x["rb_pct"])
+    rb_display = rb_sorted[:10] + rb_sorted[-8:]  # worst 10 + best 8
+    rb_labels_js = "[" + ",".join(f'"{x["group"]}"' for x in rb_display) + "]"
+    rb_vals_js = js_arr([x["rb_pct"] for x in rb_display])
+    rb_colors_js = "[" + ",".join(
+        f'"#E63946"' if x["rb_pct"] < 0 else (f'"#F4A261"' if x["rb_pct"] < 8 else f'"#2DC653"')
+        for x in rb_display
+    ) + "]"
+
+    # Product mix
+    pm_labels_js = "[" + ",".join(f'"{p["group"]}"' for p in PRODUCT_MIX) + "]"
+    pm_vals_js = js_arr([p["pct"] for p in PRODUCT_MIX])
+
+    # Q2 tracking
+    q2_reps = [r for r in REPS if r["q2_target"]]
+    q2_names_js = "[" + ",".join(f'"{r["name"]}"' for r in q2_reps) + "]"
+    q2_target_js = js_arr([r["q2_target"] for r in q2_reps])
+    q2_sales_js = js_arr([r["sales"] for r in q2_reps])
+
+    # Customer risk rows
+    cust_rows = ""
+    for c in CUSTOMERS_AT_RISK:
+        cls = rb_color_class(c["rb_pct"])
+        icon = "✗" if c["rb_pct"] < 0 else "⚠"
+        cust_rows += f"""
+          <tr>
+            <td>{c["name"]}</td>
+            <td><span class="pill {cls}">{icon} {pct_plain(c["rb_pct"])}</span></td>
+          </tr>"""
+
+    # RB product worst rows (below 0)
+    rb_risk_rows = ""
+    for p in sorted([x for x in RB_BY_PRODUCT if x["rb_pct"] < 0], key=lambda x: x["rb_pct"]):
+        cls = "red"
+        rb_risk_rows += f"""
+          <tr>
+            <td>{p["group"]}</td>
+            <td><span class="pill {cls}">✗ {pct_plain(p["rb_pct"])}</span></td>
+          </tr>"""
+
+    # Overall attainment (reps with targets only)
+    scored_reps = [r for r in REPS if r["target"] is not None]
+    avg_attainment = sum(r["sales"]/r["target"]*100 for r in scored_reps) / len(scored_reps)
+    total_target = sum(r["target"] for r in scored_reps)
+    total_sales = sum(r["sales"] for r in scored_reps)
+    total_pct = (total_sales / total_target - 1) * 100
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Olympic Paints — KPI Progress Dashboard</title>
+<title>Olympic Paints — Weekly KPI Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
   :root {{
-    --orange:#E85D04; --dark:#1A1A2E; --mid:#2D2D44; --light:#F5F5F0;
-    --gold:#F4A261; --teal:#2EC4B6; --red:#E63946; --green:#2DC653;
-    --card:#FFFFFF; --border:#E8E8E0; --muted:#6B7280;
+    --orange: #E85D04; --dark: #1A1A2E; --mid: #2D2D44; --light: #F5F5F0;
+    --gold: #F4A261; --teal: #2EC4B6; --red: #E63946; --green: #2DC653;
+    --amber: #F4A261; --card: #FFFFFF; --border: #E8E8E0; --muted: #6B7280;
+    --warn-bg: #FFF7E6; --warn-border: #F4A261;
   }}
-  *{{box-sizing:border-box;margin:0;padding:0}}
-  body{{font-family:'Segoe UI',system-ui,sans-serif;background:var(--light);color:var(--dark)}}
-  .header{{background:linear-gradient(135deg,var(--dark),var(--mid));color:#fff;padding:22px 40px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 4px 20px rgba(0,0,0,.3);position:sticky;top:0;z-index:100}}
-  .logo{{width:52px;height:52px;background:var(--orange);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;color:#fff;flex-shrink:0;box-shadow:0 0 0 3px rgba(232,93,4,.3)}}
-  .hl{{display:flex;align-items:center;gap:18px}}
-  .ht{{font-size:21px;font-weight:700}}
-  .hs{{font-size:12px;color:rgba(255,255,255,.55);margin-top:2px}}
-  .hr{{text-align:right}}
-  .hd{{font-size:11px;color:rgba(255,255,255,.4)}}
-  .hsnap{{font-size:13px;color:var(--gold);font-weight:600;margin-top:2px}}
-  .main{{padding:32px 40px;max-width:1600px;margin:0 auto}}
-  .sec{{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--orange);margin:36px 0 16px;display:flex;align-items:center;gap:10px}}
-  .sec::after{{content:'';flex:1;height:1px;background:var(--border)}}
-  .kpi-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:16px}}
-  .kpi{{background:var(--card);border-radius:12px;padding:20px 22px;border:1px solid var(--border);box-shadow:0 2px 8px rgba(0,0,0,.05);transition:transform .2s,box-shadow .2s}}
-  .kpi:hover{{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.1)}}
-  .kl{{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:8px}}
-  .kv{{font-size:24px;font-weight:800;line-height:1}}
-  .kd{{margin-top:8px;font-size:12px;font-weight:600}}
-  .kd.up{{color:var(--green)}}.kd.dn{{color:var(--red)}}.kd.neu{{color:var(--muted)}}
-  .kb{{height:4px;background:var(--border);border-radius:2px;margin-top:10px}}
-  .kbf{{height:100%;border-radius:2px;background:var(--orange)}}
-  .g2{{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}}
-  .g3{{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}}
-  .cc{{background:var(--card);border-radius:12px;padding:24px;border:1px solid var(--border);box-shadow:0 2px 8px rgba(0,0,0,.05)}}
-  .cc.full{{grid-column:1/-1}}.cc.s2{{grid-column:span 2}}
-  .ct{{font-size:14px;font-weight:700;margin-bottom:4px}}
-  .cs{{font-size:11px;color:var(--muted)}}
-  .cw{{position:relative;height:260px;margin-top:16px}}
-  .cw.tall{{height:320px}}.cw.sh{{height:200px}}
-  .tw{{overflow-x:auto;margin-top:4px}}
-  table{{width:100%;border-collapse:collapse;font-size:13px}}
-  thead tr{{background:var(--dark);color:#fff}}
-  thead th{{padding:10px 14px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;white-space:nowrap}}
-  tbody tr{{border-bottom:1px solid var(--border);transition:background .15s}}
-  tbody tr:hover{{background:rgba(232,93,4,.04)}}
-  tbody td{{padding:9px 14px}}
-  .pill{{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700}}
-  .pill.green{{background:rgba(45,198,83,.12);color:#1a9e3f}}
-  .pill.red{{background:rgba(230,57,70,.12);color:#c0392b}}
-  .pill.amber{{background:rgba(244,162,97,.15);color:#c07000}}
-  .pill.neutral{{background:rgba(107,114,128,.1);color:var(--muted)}}
-  footer{{text-align:center;padding:28px 40px;font-size:11px;color:var(--muted);border-top:1px solid var(--border);margin-top:40px}}
-  footer strong{{color:var(--orange)}}
-  @media(max-width:900px){{.main{{padding:20px}}.header{{padding:16px 20px}}.g2,.g3{{grid-template-columns:1fr}}.cc.s2{{grid-column:1}}}}
+  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+  body {{ font-family: 'Segoe UI', system-ui, sans-serif; background: var(--light); color: var(--dark); }}
+
+  .header {{ background: linear-gradient(135deg, var(--dark), var(--mid)); color: #fff;
+    padding: 22px 40px; display: flex; align-items: center; justify-content: space-between;
+    box-shadow: 0 4px 20px rgba(0,0,0,.3); position: sticky; top: 0; z-index: 100; }}
+  .header-left {{ display: flex; align-items: center; gap: 18px; }}
+  .logo {{ width: 52px; height: 52px; background: var(--orange); border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 20px;
+    font-weight: 900; color: #fff; box-shadow: 0 0 0 3px rgba(232,93,4,.3); }}
+  .header-title {{ font-size: 21px; font-weight: 700; }}
+  .header-sub {{ font-size: 12px; color: rgba(255,255,255,.55); margin-top: 2px; }}
+  .header-right {{ text-align: right; }}
+  .header-week {{ font-size: 15px; font-weight: 700; color: var(--gold); }}
+  .header-gen {{ font-size: 11px; color: rgba(255,255,255,.4); margin-top: 3px; }}
+
+  .main {{ padding: 32px 40px; max-width: 1600px; margin: 0 auto; }}
+
+  .section-title {{ font-size: 12px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1.5px; color: var(--orange); margin: 36px 0 16px;
+    display: flex; align-items: center; gap: 10px; }}
+  .section-title::after {{ content: ''; flex: 1; height: 1px; background: var(--border); }}
+
+  .kpi-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }}
+  .kpi {{ background: var(--card); border-radius: 12px; padding: 20px 22px;
+    border: 1px solid var(--border); box-shadow: 0 2px 8px rgba(0,0,0,.05);
+    transition: transform .2s; }}
+  .kpi:hover {{ transform: translateY(-2px); }}
+  .kpi-label {{ font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 1px; color: var(--muted); margin-bottom: 8px; }}
+  .kpi-value {{ font-size: 26px; font-weight: 800; line-height: 1; }}
+  .kpi-delta {{ margin-top: 8px; font-size: 12px; font-weight: 600; }}
+  .kpi-delta.up {{ color: var(--green); }} .kpi-delta.dn {{ color: var(--red); }}
+  .kpi-delta.warn {{ color: #c07000; }} .kpi-delta.neu {{ color: var(--muted); }}
+  .kpi-bar {{ height: 4px; background: var(--border); border-radius: 2px; margin-top: 10px; }}
+  .kpi-bar-fill {{ height: 100%; border-radius: 2px; }}
+
+  .g2 {{ display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }}
+  .g3 {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }}
+  .card {{ background: var(--card); border-radius: 12px; padding: 24px;
+    border: 1px solid var(--border); box-shadow: 0 2px 8px rgba(0,0,0,.05); }}
+  .card.full {{ grid-column: 1 / -1; }}
+  .card-title {{ font-size: 14px; font-weight: 700; margin-bottom: 4px; }}
+  .card-sub {{ font-size: 11px; color: var(--muted); }}
+  .chart-wrap {{ position: relative; margin-top: 16px; }}
+  .chart-wrap.h260 {{ height: 260px; }} .chart-wrap.h320 {{ height: 320px; }}
+  .chart-wrap.h200 {{ height: 200px; }} .chart-wrap.h400 {{ height: 400px; }}
+
+  .tw {{ overflow-x: auto; margin-top: 12px; }}
+  table {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
+  thead tr {{ background: var(--dark); color: #fff; }}
+  thead th {{ padding: 10px 12px; text-align: left; font-size: 10px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .8px; white-space: nowrap; }}
+  tbody tr {{ border-bottom: 1px solid var(--border); transition: background .15s; }}
+  tbody tr:hover {{ background: rgba(232,93,4,.04); }}
+  tbody td {{ padding: 9px 12px; vertical-align: middle; }}
+
+  .pill {{ display: inline-block; padding: 2px 8px; border-radius: 20px;
+    font-size: 11px; font-weight: 700; white-space: nowrap; }}
+  .pill.green  {{ background: rgba(45,198,83,.12);  color: #1a9e3f; }}
+  .pill.red    {{ background: rgba(230,57,70,.12);  color: #c0392b; }}
+  .pill.amber  {{ background: rgba(244,162,97,.15); color: #c07000; }}
+  .pill.neutral{{ background: rgba(107,114,128,.1); color: var(--muted); }}
+
+  .warn-banner {{ background: var(--warn-bg); border: 1px solid var(--warn-border);
+    border-radius: 10px; padding: 16px 20px; margin-bottom: 20px;
+    font-size: 13px; color: #7a4900; line-height: 1.6; }}
+  .warn-banner strong {{ color: #c07000; }}
+
+  .data-gap-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }}
+  .gap-card {{ background: #fff7f0; border: 1px solid #f4a261; border-radius: 10px;
+    padding: 16px; }}
+  .gap-card h4 {{ font-size: 13px; font-weight: 700; color: var(--orange); margin-bottom: 6px; }}
+  .gap-card p {{ font-size: 12px; color: #6b4b2a; line-height: 1.5; }}
+  .gap-badge {{ display: inline-block; background: var(--orange); color: #fff;
+    border-radius: 4px; font-size: 10px; font-weight: 700; padding: 1px 6px; margin-right: 4px; }}
+
+  footer {{ text-align: center; padding: 28px 40px; font-size: 11px; color: var(--muted);
+    border-top: 1px solid var(--border); margin-top: 40px; line-height: 1.6; }}
+
+  @media (max-width: 900px) {{
+    .main {{ padding: 20px; }}
+    .header {{ padding: 16px 20px; }}
+    .g2, .g3 {{ grid-template-columns: 1fr; }}
+  }}
 </style>
 </head>
 <body>
+
 <div class="header">
-  <div class="hl">
+  <div class="header-left">
     <div class="logo">OP</div>
     <div>
-      <div class="ht">Olympic Paints</div>
-      <div class="hs">KPI Progress &amp; Trend Dashboard — Sales Operations</div>
+      <div class="header-title">Olympic Paints</div>
+      <div class="header-sub">Weekly KPI Dashboard — Sales Operations</div>
     </div>
   </div>
-  <div class="hr">
-    <div class="hd">Generated {generated}</div>
-    <div class="hsnap">{n_snaps} Snapshots &middot; {earliest_date} – {latest_date}</div>
+  <div class="header-right">
+    <div class="header-week">Week ending {REPORT_WEEK}</div>
+    <div class="header-gen">Generated {generated}</div>
   </div>
 </div>
 
 <div class="main">
 
-  <div class="sec">Latest Snapshot — {latest_date}</div>
+  <!-- ALERT BANNER -->
+  <div class="warn-banner" style="margin-top:24px">
+    <strong>⚠ Partial KPI Scoring — Action Required</strong><br>
+    This report can only score <strong>KPI A (Sales Growth)</strong> from current data.
+    KPIs B, C, D &amp; E require CRM exports, store visit logs, and training records
+    which are <strong>not yet included in the automated weekly report</strong>.
+    See the <a href="#data-gaps" style="color:var(--orange)">Data Gaps section</a> for what is needed.
+  </div>
+
+  <!-- EXECUTIVE SUMMARY -->
+  <div class="section-title">Executive Summary — Week Ending {REPORT_WEEK}</div>
   <div class="kpi-grid">
     <div class="kpi">
-      <div class="kl">MTD Sales</div>
-      <div class="kv">{latest_mtd}</div>
-      <div class="kb"><div class="kbf" style="width:70%"></div></div>
+      <div class="kpi-label">MTD Sales</div>
+      <div class="kpi-value">{fmt_r(MTD_SALES)}</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" style="width:{min(MTD_SALES/MTD_TARGET*100,100):.0f}%;background:{'var(--green)' if MTD_PCT_TARGET >= 0 else 'var(--amber)'}"></div></div>
+      <div class="kpi-delta {'up' if MTD_PCT_TARGET >= 0 else 'warn'}">{'▲' if MTD_PCT_TARGET >= 0 else '▼'} {abs(MTD_PCT_TARGET):.1f}% {'above' if MTD_PCT_TARGET >= 0 else 'below'} monthly target</div>
     </div>
     <div class="kpi">
-      <div class="kl">Outstanding Debtors</div>
-      <div class="kv" style="font-size:20px">{latest_debtors}</div>
-      <div class="kb"><div class="kbf" style="width:85%"></div></div>
+      <div class="kpi-label">Monthly Target</div>
+      <div class="kpi-value">{fmt_r(MTD_TARGET)}</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" style="width:100%;background:var(--muted)"></div></div>
+      <div class="kpi-delta neu">Gap: {fmt_r(MTD_TARGET - MTD_SALES)}</div>
     </div>
     <div class="kpi">
-      <div class="kl">% Overdue &gt;90 Days</div>
-      <div class="kv">{latest_overdue}</div>
-      <div class="kd {'up' if latest.get('overdue_pct') and latest['overdue_pct'] < 10 else 'dn'}">{'▼ below 10% threshold' if latest.get('overdue_pct') and latest['overdue_pct'] < 10 else '▲ above 10% threshold'}</div>
+      <div class="kpi-label">Outstanding Debtors</div>
+      <div class="kpi-value" style="font-size:20px">{fmt_r(DEBTORS_TOTAL)}</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" style="width:100%;background:var(--red)"></div></div>
+      <div class="kpi-delta dn">▲ {fmt_r(DEBTORS_90D)} (&gt;90 days)</div>
     </div>
     <div class="kpi">
-      <div class="kl">Above Rock Bottom %</div>
-      <div class="kv">{latest_rb}</div>
-      <div class="kd {'up' if latest.get('above_rb') and latest['above_rb'] >= 8 else 'dn'}">{'▲ healthy margin' if latest.get('above_rb') and latest['above_rb'] >= 8 else '▼ margin under pressure'}</div>
+      <div class="kpi-label">% Overdue &gt;60 Days</div>
+      <div class="kpi-value">{pct_plain(OVERDUE_60D_PCT)}</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" style="width:{min(OVERDUE_60D_PCT*4,100):.0f}%;background:var(--red)"></div></div>
+      <div class="kpi-delta dn">▲ Above 10% threshold — collections attention needed</div>
     </div>
     <div class="kpi">
-      <div class="kl">Total Snapshots</div>
-      <div class="kv">{n_snaps}</div>
-      <div class="kd neu">Reports tracked</div>
+      <div class="kpi-label">Rock Bottom % (avg)</div>
+      <div class="kpi-value">{pct_plain(ABOVE_RB_AVG)}</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" style="width:{ABOVE_RB_AVG/ABOVE_RB_TARGET*100:.0f}%;background:var(--amber)"></div></div>
+      <div class="kpi-delta warn">▼ Target: {pct_plain(ABOVE_RB_TARGET)} — {pct_plain(ABOVE_RB_TARGET - ABOVE_RB_AVG)} gap</div>
     </div>
     <div class="kpi">
-      <div class="kl">Data Range</div>
-      <div class="kv" style="font-size:16px">{earliest_date[:7]}</div>
-      <div class="kd neu">→ {latest_date[:7]}</div>
+      <div class="kpi-label">Team Sales Attainment</div>
+      <div class="kpi-value">{total_pct:+.1f}%</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" style="width:{min(total_sales/total_target*100,100):.0f}%;background:{'var(--green)' if total_pct >= 0 else 'var(--amber)'}"></div></div>
+      <div class="kpi-delta {'up' if total_pct >= 0 else 'warn'}">{'▲ Ahead' if total_pct >= 0 else '▼ Behind'} — {fmt_r(total_sales)} vs {fmt_r(total_target)}</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">E-Commerce Orders</div>
+      <div class="kpi-value">{ECOM_TOTAL_ORDERS}</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" style="width:60%;background:var(--teal)"></div></div>
+      <div class="kpi-delta neu">{ECOM_TOTAL_QTY} units — see fulfilment section</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">YOY Growth (Apr)</div>
+      <div class="kpi-value">+16.1%</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" style="width:60%;background:var(--green)"></div></div>
+      <div class="kpi-delta up">▲ Apr 2026 vs Apr 2025</div>
     </div>
   </div>
 
-  <div class="sec">Monthly Sales — Cumulative MTD at Each Snapshot</div>
-  <div class="g2">
-    <div class="cc s2">
-      <div class="ct">MTD Sales (R) — All Snapshots</div>
-      <div class="cs">Each bar = total sales recorded at that snapshot date</div>
-      <div class="cw tall"><canvas id="cMTD"></canvas></div>
-    </div>
+  <!-- KPI COMPLIANCE SCORECARD -->
+  <div class="section-title">KPI Compliance Scorecard — Per Rep</div>
+  <div class="warn-banner">
+    <strong>Scoring Status:</strong>
+    &nbsp;<span class="pill green" style="font-size:11px">A — Sales Growth</span> Scored from QuickSight data.
+    &nbsp;<span class="pill neutral" style="font-size:11px">B — CRM</span>
+    <span class="pill neutral" style="font-size:11px">C — Product Dev</span>
+    <span class="pill neutral" style="font-size:11px">D — New Customers</span>
+    <span class="pill neutral" style="font-size:11px">E — Training</span>
+    These 4 categories cannot be scored — data not in current report export.
+    <strong>Total scoreable weight this week: 50% of 100%.</strong>
   </div>
-
-  <div class="sec">Debtors Health</div>
-  <div class="g2">
-    <div class="cc">
-      <div class="ct">Outstanding Debtors (R)</div>
-      <div class="cs">Total book across all snapshots</div>
-      <div class="cw"><canvas id="cDebtors"></canvas></div>
-    </div>
-    <div class="cc">
-      <div class="ct">% Overdue &gt;90 Days</div>
-      <div class="cs">Below 10% is healthy — red dashed line = danger threshold</div>
-      <div class="cw"><canvas id="cOverdue"></canvas></div>
-    </div>
-  </div>
-
-  <div class="sec">Rep Target Attainment — MTD % of Monthly Target</div>
-  <div class="g2">
-    <div class="cc s2">
-      <div class="ct">Rep Attainment % — All Snapshots</div>
-      <div class="cs">Cumulative MTD attainment per rep at each snapshot date</div>
-      <div class="cw"><canvas id="cReps"></canvas></div>
-    </div>
-  </div>
-
-  <div class="sec">Margin Health — Above Rock Bottom %</div>
-  <div class="g2">
-    <div class="cc s2">
-      <div class="ct">Above Rock Bottom % — All Snapshots</div>
-      <div class="cs">Measures how far above minimum margin the business trades. Target: ≥ 8%</div>
-      <div class="cw"><canvas id="cRB"></canvas></div>
-    </div>
-  </div>
-
-  <div class="sec">Credits &amp; Returns</div>
-  <div class="g2">
-    <div class="cc s2">
-      <div class="ct">Total Credits Issued (R) — by Snapshot</div>
-      <div class="cs">Sum of all credit notes in each report period</div>
-      <div class="cw sh"><canvas id="cCredits"></canvas></div>
-    </div>
-  </div>
-
-  <div class="sec">KPI Movement Table — Snapshot by Snapshot</div>
-  <div class="cc full">
+  <div class="card full">
+    <div class="card-title">Rep KPI Agreement Scorecard</div>
+    <div class="card-sub">Based on Sales Rep KPI Agreement 2025 — 5 weighted categories</div>
     <div class="tw">
       <table>
         <thead>
           <tr>
-            <th>Snapshot</th><th>MTD Sales</th><th>Debtors</th>
-            <th>Overdue &gt;90d</th><th>Above RB%</th>
-            <th>Aboo %T</th><th>Amit %T</th><th>Bhadresh %T</th><th>Nikhil %T</th>
+            <th>Rep</th>
+            <th>MTD Sales</th>
+            <th>Monthly Target</th>
+            <th>vs Target</th>
+            <th>Rock Bottom %</th>
+            <th>A — Sales Growth (50%)</th>
+            <th>B — CRM Dev (20%)</th>
+            <th>C — Product Dev (10%)</th>
+            <th>D — New Customers (10%)</th>
+            <th>E — Training (10%)</th>
+            <th>Approved Orders</th>
           </tr>
         </thead>
-        <tbody>{table_rows}</tbody>
+        <tbody>{rep_rows}</tbody>
       </table>
+    </div>
+    <p style="margin-top:12px;font-size:11px;color:var(--muted)">
+      KPI A scoring uses YOY growth vs prior year baseline. Per the KPI Agreement: growth must exceed 10% above baseline
+      to qualify for commission. Reps below 10% YOY growth do not qualify for KPI A incentive this period.
+    </p>
+  </div>
+
+  <!-- REP PERFORMANCE CHARTS -->
+  <div class="section-title">Rep Sales Performance — April 2026</div>
+  <div class="g2">
+    <div class="card">
+      <div class="card-title">MTD Sales vs Monthly Target</div>
+      <div class="card-sub">R values for week ending {REPORT_WEEK}</div>
+      <div class="chart-wrap h320"><canvas id="cRepTarget"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Q2 Target Tracking — YTD vs Q2 Target</div>
+      <div class="card-sub">Quarter 2 cumulative — April 2026</div>
+      <div class="chart-wrap h320"><canvas id="cQ2Track"></canvas></div>
+    </div>
+  </div>
+
+  <!-- YOY -->
+  <div class="section-title">Year-on-Year Sales Comparison</div>
+  <div class="g2">
+    <div class="card">
+      <div class="card-title">Monthly Sales: 2025 vs 2026</div>
+      <div class="card-sub">Jan–Apr comparison</div>
+      <div class="chart-wrap h260"><canvas id="cYOY"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">YOY Growth % by Month</div>
+      <div class="card-sub">Positive = ahead of prior year</div>
+      <div class="chart-wrap h260"><canvas id="cYOYpct"></canvas></div>
+    </div>
+  </div>
+
+  <!-- ROCK BOTTOM ANALYSIS -->
+  <div class="section-title">Margin Health — Rock Bottom Analysis</div>
+  <div class="warn-banner">
+    <strong>⚠ Margin Risk:</strong> Company average rock bottom margin is <strong>{pct_plain(ABOVE_RB_AVG)}</strong>
+    against a target of <strong>{pct_plain(ABOVE_RB_TARGET)}</strong>.
+    {len([x for x in RB_BY_PRODUCT if x["rb_pct"] < 0])} product groups are trading <strong>below rock bottom</strong> (negative margin).
+    Immediate pricing review required for highlighted accounts and products.
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="card-title">Rock Bottom % — Product Groups (Selected)</div>
+      <div class="card-sub">Red = below rock bottom, Amber = below 8% target, Green = healthy</div>
+      <div class="chart-wrap h400"><canvas id="cRBProduct"></canvas></div>
+    </div>
+    <div class="g2" style="display:flex;flex-direction:column;gap:20px">
+      <div class="card">
+        <div class="card-title">Customers at Risk — Rock Bottom %</div>
+        <div class="card-sub">Accounts trading below or near rock bottom price</div>
+        <div class="tw">
+          <table>
+            <thead><tr><th>Customer</th><th>Rock Bottom %</th></tr></thead>
+            <tbody>{cust_rows}</tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Product Groups Below Rock Bottom</div>
+        <div class="card-sub">Negative margin — requires immediate price correction</div>
+        <div class="tw">
+          <table>
+            <thead><tr><th>Product Group</th><th>Rock Bottom %</th></tr></thead>
+            <tbody>{rb_risk_rows}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PRODUCT MIX -->
+  <div class="section-title">Product Mix — Revenue Distribution</div>
+  <div class="g2">
+    <div class="card">
+      <div class="card-title">Revenue by Product Category (April 2026)</div>
+      <div class="card-sub">Based on average group sales values from weekly report</div>
+      <div class="chart-wrap h260"><canvas id="cProductMix"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Debtors &amp; Collections Health</div>
+      <div class="card-sub">Outstanding debt position — week ending {REPORT_WEEK}</div>
+      <div style="margin-top:20px">
+        <div style="display:flex;gap:16px;flex-wrap:wrap">
+          <div style="flex:1;min-width:140px;background:#fff0f0;border-radius:10px;padding:16px;border:1px solid #fcc">
+            <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase">Total Debtors</div>
+            <div style="font-size:22px;font-weight:800;color:var(--dark);margin-top:4px">{fmt_r(DEBTORS_TOTAL)}</div>
+          </div>
+          <div style="flex:1;min-width:140px;background:#fff0f0;border-radius:10px;padding:16px;border:1px solid #fcc">
+            <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase">Overdue &gt;90 Days</div>
+            <div style="font-size:22px;font-weight:800;color:var(--red);margin-top:4px">{fmt_r(DEBTORS_90D)}</div>
+          </div>
+          <div style="flex:1;min-width:140px;background:#fff7e6;border-radius:10px;padding:16px;border:1px solid #f4a261">
+            <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase">% Overdue &gt;60d</div>
+            <div style="font-size:22px;font-weight:800;color:#c07000;margin-top:4px">{pct_plain(OVERDUE_60D_PCT)}</div>
+            <div style="font-size:11px;color:#c07000;margin-top:4px">Target: &lt;10%</div>
+          </div>
+        </div>
+        <p style="margin-top:16px;font-size:12px;color:var(--muted);line-height:1.6">
+          Collections are a qualifying condition for KPI A commission.
+          Only invoices settled within 30–60 days qualify under the KPI Agreement.
+          A collections audit is required to determine which rep sales are eligible.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- E-COMMERCE -->
+  <div class="section-title">E-Commerce Fulfilment — 21 April 2026</div>
+  <div class="g3">
+    <div class="card">
+      <div class="kpi-label">Total Open Orders</div>
+      <div class="kpi-value" style="font-size:36px;color:var(--dark)">{ECOM_TOTAL_ORDERS}</div>
+      <div class="kpi-delta neu">{ECOM_TOTAL_QTY} total units</div>
+    </div>
+    <div class="card">
+      <div class="kpi-label">Orders by Age in System</div>
+      <div style="margin-top:12px">
+        {''.join(f'<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:13px"><span>{k}</span><span style="font-weight:700">{v} orders</span></div>' for k, v in ECOM_AGING.items())}
+      </div>
+    </div>
+    <div class="card">
+      <div class="kpi-label">Fulfilment Risk Notes</div>
+      <p style="font-size:12px;color:var(--muted);margin-top:10px;line-height:1.6">
+        22 orders are 15+ days in system. Key statuses: <strong>pending</strong> (unconfirmed),
+        <strong>manufacturing</strong> (in production), <strong>on-hold</strong> (blocked).
+        Multiple orders to <em>Deniz</em>, <em>Latticia</em>, and <em>Lynette</em> accounts are ageing.
+        Dispatch target dates have been exceeded for most open orders.
+      </p>
+    </div>
+  </div>
+
+  <!-- DATA GAPS -->
+  <div class="section-title" id="data-gaps">Data Gaps — What Is Needed to Complete KPI Scoring</div>
+  <div class="data-gap-grid">
+    <div class="gap-card">
+      <h4><span class="gap-badge">B</span> CRM &amp; Customer Development (20%)</h4>
+      <p>Need: Monthly CRM export showing new and reactivated customers logged per rep.
+      Minimum 5 per rep per month for full score. Currently showing "No data" in QuickSight report.</p>
+    </div>
+    <div class="gap-card">
+      <h4><span class="gap-badge">C</span> Product Development Upsells (10%)</h4>
+      <p>Need: CRM records of upsell activities — product, customer, date, evidence photo.
+      Focus products defined quarterly (e.g. Natural Elegance, 7-in-1 PVA, Fibre Restore).
+      Minimum 4–5 per rep per month.</p>
+    </div>
+    <div class="gap-card">
+      <h4><span class="gap-badge">D</span> New Customer Onboarding (10%)</h4>
+      <p>Need: List of new trading customers onboarded this month per rep —
+      credit application completed, first invoice issued, CRM logged.
+      Minimum 2 per rep per month.</p>
+    </div>
+    <div class="gap-card">
+      <h4><span class="gap-badge">E</span> Training &amp; Merchandising (10%)</h4>
+      <p>Need: Training attendance lists, photos, and reports per key account.
+      Also POS / branding compliance photo evidence.
+      Minimum 1 training per key account per month.</p>
+    </div>
+    <div class="gap-card">
+      <h4><span class="gap-badge">A</span> Collections Audit (50%)</h4>
+      <p>Need: Per-rep collections rate — which invoices have been settled within 30–60 days.
+      Only settled invoices qualify for KPI A commission.
+      Current data shows sales only, not settlement status.</p>
+    </div>
+    <div class="gap-card">
+      <h4><span class="gap-badge">+</span> Store Visit Counts</h4>
+      <p>QuickSight shows "No data" for store visits per sales manager.
+      This data may exist in Zoho CRM. A weekly export of visit logs per rep
+      is required to score visit frequency against call cycle targets.</p>
+    </div>
+    <div class="gap-card">
+      <h4><span class="gap-badge">+</span> Leads Created</h4>
+      <p>QuickSight shows "No data" for leads created per rep.
+      Required to measure pipeline development and new store identification
+      per the KPI framework and new store qualification SOP.</p>
+    </div>
+    <div class="gap-card">
+      <h4><span class="gap-badge">+</span> Rock Bottom per Rep</h4>
+      <p>Rock bottom % is available for some reps (AP: 8.85%, NP: 8.82%) but not all.
+      A full per-rep rock bottom % is needed to assess margin discipline per rep,
+      not just at product group level.</p>
     </div>
   </div>
 
 </div>
 
-<footer><strong>Olympic Paints</strong> · KPI Dashboard · Auto-generated from QuickSight Sales Summary PDFs · {generated}</footer>
+<footer>
+  <strong>Olympic Paints</strong> · Weekly KPI Dashboard · Week ending {REPORT_WEEK}<br>
+  Data sourced from Amazon QuickSight Weekly Sales Reports (Weekly Progress folder).<br>
+  KPI scoring requires additional CRM and activity data not yet available in automated export.<br>
+  Based on: Sales Rep KPI Agreement 2025/01 — 5 weighted categories (Sales Growth 50% | CRM 20% | Product Dev 10% | New Customers 10% | Training 10%)<br>
+  Generated {generated}
+</footer>
 
 <script>
-const LABELS = {labels_js};
-const G = Chart.defaults;
-G.font.family = "'Segoe UI',system-ui,sans-serif";
-G.font.size = 12;
-G.color = '#6B7280';
+const O='#E85D04', R='#E63946', T='#2EC4B6', G='#2DC653', B='#457B9D', GD='#F4A261', DK='#1A1A2E';
+Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
+Chart.defaults.font.size = 12;
+Chart.defaults.color = '#6B7280';
 const grid = {{color:'rgba(0,0,0,0.06)'}};
 
-const O='#E85D04',R='#E63946',T='#2EC4B6',G2='#2DC653',B='#457B9D',P='#7B2D8B',GD='#F4A261',DK='#1A1A2E';
-
-new Chart(document.getElementById('cMTD'),{{
-  type:'bar',
-  data:{{labels:LABELS,datasets:[{{label:'MTD Sales',data:{mtd_arr},
-    backgroundColor:LABELS.map((_,i)=>i===LABELS.length-1?O:O+'99'),borderRadius:6}}]}},
-  options:{{responsive:true,maintainAspectRatio:false,plugins:{{legend:{{display:false}},
-    tooltip:{{callbacks:{{label:c=>'R '+c.parsed.y.toLocaleString('en-ZA')}}}}}},
-    scales:{{y:{{grid,ticks:{{callback:v=>'R'+(v/1e6).toFixed(1)+'M'}}}},x:{{grid:{{display:false}}}}}}}}
+// Rep vs Target
+new Chart(document.getElementById('cRepTarget'), {{
+  type: 'bar',
+  data: {{
+    labels: {rep_names_js},
+    datasets: [
+      {{label:'MTD Sales',   data:{rep_sales_js},  backgroundColor: O+'CC', borderRadius:6}},
+      {{label:'Monthly Target', data:{rep_target_js}, backgroundColor: 'rgba(107,114,128,0.25)', borderRadius:6}}
+    ]
+  }},
+  options: {{
+    responsive:true, maintainAspectRatio:false,
+    plugins:{{legend:{{display:true,position:'bottom'}},
+      tooltip:{{callbacks:{{label:c=>'R '+c.parsed.y.toLocaleString('en-ZA')}}}}}},
+    scales:{{y:{{grid,ticks:{{callback:v=>'R'+(v/1e6).toFixed(1)+'M'}}}},x:{{grid:{{display:false}}}}}}
+  }}
 }});
 
-new Chart(document.getElementById('cDebtors'),{{
-  type:'line',
-  data:{{labels:LABELS,datasets:[{{label:'Outstanding Debtors',data:{debtors_arr},
-    borderColor:R,backgroundColor:R+'18',fill:true,tension:0.4,pointRadius:5}}]}},
-  options:{{responsive:true,maintainAspectRatio:false,plugins:{{legend:{{display:false}},
-    tooltip:{{callbacks:{{label:c=>'R '+c.parsed.y.toLocaleString('en-ZA')}}}}}},
-    scales:{{y:{{grid,ticks:{{callback:v=>'R'+(v/1e6).toFixed(1)+'M'}}}},x:{{grid:{{display:false}}}}}}}}
+// Q2 Tracking
+new Chart(document.getElementById('cQ2Track'), {{
+  type: 'bar',
+  data: {{
+    labels: {q2_names_js},
+    datasets: [
+      {{label:'YTD Sales',  data:{q2_sales_js},  backgroundColor: O+'CC', borderRadius:6}},
+      {{label:'Q2 Target',  data:{q2_target_js}, backgroundColor: 'rgba(107,114,128,0.25)', borderRadius:6}}
+    ]
+  }},
+  options: {{
+    responsive:true, maintainAspectRatio:false,
+    plugins:{{legend:{{display:true,position:'bottom'}},
+      tooltip:{{callbacks:{{label:c=>'R '+c.parsed.y.toLocaleString('en-ZA')}}}}}},
+    scales:{{y:{{grid,ticks:{{callback:v=>'R'+(v/1e6).toFixed(1)+'M'}}}},x:{{grid:{{display:false}}}}}}
+  }}
 }});
 
-new Chart(document.getElementById('cOverdue'),{{
-  type:'line',
-  data:{{labels:LABELS,datasets:[
-    {{label:'% Overdue >90d',data:{overdue_arr},borderColor:O,backgroundColor:O+'18',fill:true,tension:0.4,pointRadius:5}},
-    {{label:'10% threshold',data:LABELS.map(()=>10),borderColor:R,borderDash:[6,4],borderWidth:1.5,pointRadius:0,fill:false}}
-  ]}},
-  options:{{responsive:true,maintainAspectRatio:false,
-    plugins:{{legend:{{display:true,position:'bottom',labels:{{boxWidth:12,padding:12}}}},
-      tooltip:{{callbacks:{{label:c=>c.parsed.y+'%'}}}}}},
-    scales:{{y:{{grid,ticks:{{callback:v=>v+'%'}},min:0,max:25}},x:{{grid:{{display:false}}}}}}}}
+// YOY line
+new Chart(document.getElementById('cYOY'), {{
+  type: 'line',
+  data: {{
+    labels: {months_js},
+    datasets: [
+      {{label:'2025', data:{s25_js}, borderColor:'rgba(107,114,128,0.6)', fill:false, tension:0.3, pointRadius:5, borderDash:[5,3]}},
+      {{label:'2026', data:{s26_js}, borderColor:O, fill:false, tension:0.3, pointRadius:6, borderWidth:2.5}}
+    ]
+  }},
+  options: {{
+    responsive:true, maintainAspectRatio:false,
+    plugins:{{legend:{{display:true,position:'bottom'}},
+      tooltip:{{callbacks:{{label:c=>'R '+c.parsed.y.toLocaleString('en-ZA')}}}}}},
+    scales:{{y:{{grid,ticks:{{callback:v=>'R'+(v/1e6).toFixed(1)+'M'}}}},x:{{grid:{{display:false}}}}}}
+  }}
 }});
 
-new Chart(document.getElementById('cReps'),{{
-  type:'line',
-  data:{{labels:LABELS,datasets:[
-    {{label:'Aboo Cassim',   data:{aboo_arr},    borderColor:O,fill:false,tension:0.3,pointRadius:4}},
-    {{label:'Amit Patel',    data:{amit_arr},    borderColor:T,fill:false,tension:0.3,pointRadius:4}},
-    {{label:'Bhadresh Vallabh',data:{bhadresh_arr},borderColor:B,fill:false,tension:0.3,pointRadius:4}},
-    {{label:'Nikhil Panchal',data:{nikhil_arr},  borderColor:P,fill:false,tension:0.3,pointRadius:4}},
-  ]}},
-  options:{{responsive:true,maintainAspectRatio:false,
-    plugins:{{legend:{{display:true,position:'bottom',labels:{{boxWidth:12,padding:12}}}},
-      tooltip:{{callbacks:{{label:c=>c.dataset.label+': '+c.parsed.y+'%'}}}}}},
-    scales:{{y:{{grid,ticks:{{callback:v=>v+'%'}},min:0,max:110}},x:{{grid:{{display:false}}}}}}}}
+// YOY %
+new Chart(document.getElementById('cYOYpct'), {{
+  type: 'bar',
+  data: {{
+    labels: {months_js},
+    datasets: [{{
+      label:'YOY Growth %', data:{yoy_pct_js},
+      backgroundColor: {yoy_pct_js}.map(v=>v>=0?G+'CC':R+'CC'),
+      borderRadius: 6
+    }}]
+  }},
+  options: {{
+    responsive:true, maintainAspectRatio:false,
+    plugins:{{legend:{{display:false}},
+      tooltip:{{callbacks:{{label:c=>c.parsed.y.toFixed(1)+'%'}}}}}},
+    scales:{{y:{{grid,ticks:{{callback:v=>v+'%'}}}},x:{{grid:{{display:false}}}}}}
+  }}
 }});
 
-new Chart(document.getElementById('cRB'),{{
-  type:'line',
-  data:{{labels:LABELS,datasets:[
-    {{label:'Above Rock Bottom %',data:{rb_arr},borderColor:G2,backgroundColor:G2+'22',fill:true,tension:0.4,pointRadius:5}},
-    {{label:'8% healthy target',data:LABELS.map(()=>8),borderColor:'#aaa',borderDash:[6,4],borderWidth:1.5,pointRadius:0,fill:false}}
-  ]}},
-  options:{{responsive:true,maintainAspectRatio:false,
-    plugins:{{legend:{{display:true,position:'bottom',labels:{{boxWidth:12,padding:12}}}},
-      tooltip:{{callbacks:{{label:c=>c.parsed.y+'%'}}}}}},
-    scales:{{y:{{grid,ticks:{{callback:v=>v+'%'}},min:0,max:15}},x:{{grid:{{display:false}}}}}}}}
+// RB by Product
+new Chart(document.getElementById('cRBProduct'), {{
+  type: 'bar',
+  data: {{
+    labels: {rb_labels_js},
+    datasets: [{{
+      label:'Rock Bottom %', data:{rb_vals_js},
+      backgroundColor:{rb_colors_js},
+      borderRadius:4
+    }}]
+  }},
+  options: {{
+    indexAxis:'y', responsive:true, maintainAspectRatio:false,
+    plugins:{{legend:{{display:false}},
+      tooltip:{{callbacks:{{label:c=>c.parsed.x.toFixed(2)+'%'}}}},
+      annotation:{{annotations:{{line1:{{type:'line',xMin:8,xMax:8,borderColor:'rgba(45,198,83,0.8)',borderWidth:2,borderDash:[6,4],label:{{display:true,content:'8% Target',position:'end'}}}}}}}}}},
+    scales:{{x:{{grid,ticks:{{callback:v=>v+'%'}}}},y:{{grid:{{display:false}},ticks:{{font:{{size:10}}}}}}}}
+  }}
 }});
 
-new Chart(document.getElementById('cCredits'),{{
-  type:'bar',
-  data:{{labels:LABELS,datasets:[{{label:'Credits (R)',data:{credits_arr},
-    backgroundColor:O+'99',borderRadius:4}}]}},
-  options:{{responsive:true,maintainAspectRatio:false,plugins:{{legend:{{display:false}},
-    tooltip:{{callbacks:{{label:c=>'R '+c.parsed.y.toLocaleString('en-ZA')}}}}}},
-    scales:{{y:{{grid,ticks:{{callback:v=>'R'+(v/1000).toFixed(0)+'K'}}}},x:{{grid:{{display:false}}}}}}}}
+// Product Mix doughnut
+new Chart(document.getElementById('cProductMix'), {{
+  type: 'doughnut',
+  data: {{
+    labels: {pm_labels_js},
+    datasets: [{{
+      data: {pm_vals_js},
+      backgroundColor: [O,T,G,B,GD,R,'#7B2D8B'],
+      borderWidth: 2, borderColor:'#fff'
+    }}]
+  }},
+  options: {{
+    responsive:true, maintainAspectRatio:false,
+    plugins:{{legend:{{position:'bottom',labels:{{padding:12,boxWidth:12}}}},
+      tooltip:{{callbacks:{{label:c=>c.label+': '+c.parsed+'%'}}}}}}
+  }}
 }});
+
 </script>
 </body>
 </html>"""
     return html
 
 
-# ── GIT PUSH ─────────────────────────────────────────────────────────────────
+# ── GIT PUSH ──────────────────────────────────────────────────────────────────
 
-def git_push(dashboard_path: Path, n_snaps: int):
-    cwd = dashboard_path.parent
-    msg = f"Auto-update KPI dashboard — {n_snaps} snapshots — {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+def git_push(path: Path):
+    cwd = str(path)
+    msg = f"Weekly KPI Dashboard update — {REPORT_WEEK} — {datetime.now().strftime('%Y-%m-%d %H:%M')}"
 
     def run(cmd):
-        result = subprocess.run(cmd, cwd=str(cwd), capture_output=True, text=True)
-        if result.returncode != 0:
-            print(f"  [WARN] {' '.join(cmd)}: {result.stderr.strip()}")
-        return result.returncode == 0
+        r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+        if r.returncode != 0:
+            print(f"  [WARN] {' '.join(cmd)}: {r.stderr.strip()}")
+        return r.returncode == 0
 
     run(["git", "config", "user.email", "auto@olympic-paints.local"])
     run(["git", "config", "user.name",  "Olympic KPI Bot"])
-    run(["git", "add", "KPI Dashboard.html"])
     run(["git", "add", "index.html"])
+    run(["git", "add", "KPI Dashboard.html"])
     run(["git", "add", "build_kpi_dashboard.py"])
     run(["git", "commit", "-m", msg])
     ok = run(["git", "push", "origin", "master"])
-    if ok:
-        print(f"  ✓ Pushed to GitHub ({n_snaps} snapshots)")
-    else:
-        # Try pushing with branch name main as fallback
+    if not ok:
         run(["git", "push", "-u", "origin", "master"])
+    if ok:
+        print(f"  ✓ Pushed to GitHub")
 
 
-# ── ARCHIVING ────────────────────────────────────────────────────────────────
-
-def archive_live_pdfs() -> list[Path]:
-    """Move any Sales_Summary_*.pdf sitting in the live LIVE folder into ARCHIVE.
-    Returns the list of files that were moved."""
-    ARCHIVE.mkdir(parents=True, exist_ok=True)
-    moved = []
-    for f in sorted(LIVE.glob("Sales_Summary_*.pdf")):
-        dest = ARCHIVE / f.name
-        if dest.exists():
-            # Already archived under the same name — skip to avoid overwrite
-            print(f"  [SKIP] Already in archive: {f.name}")
-            continue
-        shutil.move(str(f), str(dest))
-        moved.append(dest)
-        print(f"  → Archived: {f.name}")
-    return moved
-
-
-# ── MAIN ─────────────────────────────────────────────────────────────────────
+# ── MAIN ──────────────────────────────────────────────────────────────────────
 
 def main():
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M')}] Building KPI Dashboard…")
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M')}] Building Olympic Paints KPI Dashboard...")
+    print(f"  Report week: {REPORT_WEEK}")
 
-    pdfs = find_snapshots()
-    print(f"  Found {len(pdfs)} Sales Summary PDF(s)")
-
-    snapshots = []
-    for dt, path in pdfs:
-        print(f"  Extracting: {path.name}")
-        kpi = extract_kpi(path)
-        if kpi.get("date"):
-            snapshots.append(kpi)
-
-    if not snapshots:
-        print("  [ERROR] No data extracted — aborting.")
-        sys.exit(1)
-
-    html = build_html(snapshots)
+    html = build_html()
     DASHBOARD.write_text(html, encoding="utf-8")
-    # index.html is what GitHub Pages serves from the root
-    (BASE_DIR / "index.html").write_text(html, encoding="utf-8")
-    print(f"  ✓ Dashboard written → {DASHBOARD}")
+    INDEX.write_text(html, encoding="utf-8")
+    print(f"  OK Written: {INDEX}")
 
-    git_push(DASHBOARD, len(snapshots))
-
-    # Archive new PDFs only after a successful push
-    moved = archive_live_pdfs()
-    if moved:
-        print(f"  ✓ Archived {len(moved)} new PDF(s) to Daily Reports Archive")
-
+    git_push(BASE_DIR)
     print("  Done.")
 
 
