@@ -23,32 +23,32 @@ WORKSPACE_DASH  = Path(r"C:\Users\quint\workspace-dashboard")
 
 # ── WEEKLY DATA ───────────────────────────────────────────────────────────────
 # Update this block each week from the QuickSight Weekly Sales Report PDFs.
-# Source: Weekly Progress folder — week ending 25 April 2026
+# Source: Weekly Progress folder — week ending 1 May 2026
 
-REPORT_WEEK   = "25 April 2026"
-REPORT_DATE   = "2026-04-25"
+REPORT_WEEK   = "1 May 2026"
+REPORT_DATE   = "2026-05-01"
 
-# ── Sales & Target (from Weekly_Sales_Report__2026-04-25T07_56_05.pdf) ─────
-MTD_SALES     = 11_444_651.93
-MTD_TARGET    = 12_814_305.26
-MTD_PCT_TARGET = -10.69   # % vs target (negative = below)
+# ── Sales & Target (from Weekly_Sales_Report__2026-05-01T04_50_35.pdf) ──────
+MTD_SALES      = 12_796_044.69
+MTD_TARGET     = 12_814_305.26
+MTD_PCT_TARGET = -0.14   # % vs target (negative = below)
 
 # ── Debtors ──────────────────────────────────────────────────────────────────
-DEBTORS_TOTAL  = 22_019_499.10
-DEBTORS_90D    = 4_848_337.02
-OVERDUE_60D_PCT = 22.02   # % overdue > 60 days
+DEBTORS_TOTAL  = 20_922_618.50
+DEBTORS_90D    = 4_495_542.11
+OVERDUE_60D_PCT = 21.49   # % overdue > 60 days
 
 # ── Margin ───────────────────────────────────────────────────────────────────
-ABOVE_RB_AVG   = 5.26    # company average rock bottom %
+ABOVE_RB_AVG   = 9.75    # company average rock bottom % (store avg: 4.25%)
 ABOVE_RB_TARGET = 15.0   # target
 
 # ── Rep MTD Performance ───────────────────────────────────────────────────────
 REPS = [
-    {"code": "AC", "name": "Aboo Cassim",     "sales": 1_502_958.98, "target": 1_160_055.78, "pct": 22.82,  "rb_pct": None,  "q2_target": 2_756_633.76,  "yoy": -29.12, "orders_approved": None},
-    {"code": "AP", "name": "Amit Patel",      "sales": 1_645_605.58, "target": 1_582_503.57, "pct": 3.83,   "rb_pct": 8.85,  "q2_target": 2_336_788.38,  "yoy": -8.45,  "orders_approved": 370_105},
-    {"code": "BV", "name": "Bhadresh Vallabh","sales": 3_831_481.27, "target": 5_131_146.02, "pct": -33.92, "rb_pct": None,  "q2_target": 10_753_757.53, "yoy": -53.68, "orders_approved": 1_485_543},
-    {"code": "NP", "name": "Nikhil Panchal",  "sales": 4_443_840.97, "target": 4_940_599.89, "pct": -11.18, "rb_pct": 8.82,  "q2_target": 9_896_452.05,  "yoy": -41.63, "orders_approved": 901_029},
-    {"code": "BM", "name": "Byron Minnie",    "sales": 20_765.13,    "target": None,          "pct": None,   "rb_pct": None,  "q2_target": None,           "yoy": None,   "orders_approved": None},
+    {"code": "AC", "name": "Aboo Cassim",     "sales": 1_626_404.30, "target": 1_160_055.78, "pct": 28.67,  "rb_pct": None,  "q2_target": 2_756_633.76,  "yoy": None,   "orders_approved": 152_469},
+    {"code": "AP", "name": "Amit Patel",      "sales": 1_996_047.54, "target": 1_582_503.57, "pct": 20.72,  "rb_pct": 8.85,  "q2_target": 2_336_788.38,  "yoy": None,   "orders_approved": 320_042},
+    {"code": "BV", "name": "Bhadresh Vallabh","sales": 4_411_457.73, "target": 5_131_146.02, "pct": -16.31, "rb_pct": None,  "q2_target": 10_753_757.53, "yoy": None,   "orders_approved": 1_568_153},
+    {"code": "NP", "name": "Nikhil Panchal",  "sales": 4_738_186.05, "target": 4_940_599.89, "pct": -4.27,  "rb_pct": 8.82,  "q2_target": 9_896_452.05,  "yoy": None,   "orders_approved": 977_024},
+    {"code": "BM", "name": "Byron Minnie",    "sales": 23_949.07,    "target": None,          "pct": None,   "rb_pct": None,  "q2_target": None,           "yoy": None,   "orders_approved": None},
 ]
 
 # ── YOY Monthly Comparison ────────────────────────────────────────────────────
@@ -56,7 +56,7 @@ YOY = [
     {"month": "Jan", "sales_2025": 7_297_999.94, "sales_2026": 7_617_705.29, "yoy_pct": 4.38},
     {"month": "Feb", "sales_2025": 8_251_126.12, "sales_2026": 9_875_474.09, "yoy_pct": 19.69},
     {"month": "Mar", "sales_2025": 11_342_188.94,"sales_2026": 10_504_834.10,"yoy_pct": -7.38},
-    {"month": "Apr", "sales_2025": 9_857_157.89, "sales_2026": 11_444_651.93,"yoy_pct": 16.10},
+    {"month": "Apr", "sales_2025": 9_857_157.89, "sales_2026": 12_796_044.69,"yoy_pct": 29.81},
 ]
 
 # ── Product Mix by Revenue % ──────────────────────────────────────────────────
@@ -72,35 +72,35 @@ PRODUCT_MIX = [
 
 # ── Rock Bottom % by Product Group ────────────────────────────────────────────
 RB_BY_PRODUCT = [
-    {"group": "Ultimate Shine",     "rb_pct": -24.44},
-    {"group": "Membrane",           "rb_pct": -19.32},
-    {"group": "Etch Primer",        "rb_pct": -8.63},
-    {"group": "Rust Remover",       "rb_pct": -6.81},
-    {"group": "Distemper",          "rb_pct": -6.15},
-    {"group": "LIBERTY",            "rb_pct": -4.82},
-    {"group": "Kalahari Contractors","rb_pct": -4.65},
-    {"group": "Wood Primer",        "rb_pct": -4.52},
-    {"group": "7 in 1 PVA",         "rb_pct": -3.44},
-    {"group": "Road Marking",       "rb_pct": -3.10},
-    {"group": "All In One",         "rb_pct": -2.72},
-    {"group": "Hi Hiding Contr",    "rb_pct": -1.73},
-    {"group": "Oxide",              "rb_pct": -1.69},
-    {"group": "Eclipse PVA",        "rb_pct": -0.37},
-    {"group": "RainProof",          "rb_pct": 0.48},
-    {"group": "Rugged Beauty",      "rb_pct": 0.92},
-    {"group": "High Gloss",         "rb_pct": 0.93},
-    {"group": "Fibre Restore",      "rb_pct": 1.27},
-    {"group": "Master Decorators",  "rb_pct": 1.31},
-    {"group": "Suburban Bliss",     "rb_pct": 1.40},
-    {"group": "Primer",             "rb_pct": 1.77},
-    {"group": "Putty",              "rb_pct": 1.96},
-    {"group": "Thinner",            "rb_pct": 1.99},
-    {"group": "Plaster n Tile Bond","rb_pct": 2.19},
-    {"group": "Universal Roof Paint","rb_pct": 2.77},
-    {"group": "Sanding Sealer",     "rb_pct": 3.23},
-    {"group": "Stainer",            "rb_pct": 3.66},
-    {"group": "Zinc Phosphate",     "rb_pct": 4.98},
-    {"group": "Pick & Save",        "rb_pct": 5.18},
+    {"group": "Ultimate Shine",      "rb_pct": -24.30},
+    {"group": "Membrane",            "rb_pct": -23.69},
+    {"group": "Etch Primer",         "rb_pct": -8.63},
+    {"group": "Rust Remover",        "rb_pct": -6.81},
+    {"group": "Distemper",           "rb_pct": -6.15},
+    {"group": "LIBERTY",             "rb_pct": -4.82},
+    {"group": "Wood Primer",         "rb_pct": -4.52},
+    {"group": "7 in 1 PVA",          "rb_pct": -3.94},
+    {"group": "Kalahari Contractors", "rb_pct": -3.77},
+    {"group": "All In One",           "rb_pct": -2.72},
+    {"group": "Hi Hiding Contr",      "rb_pct": -1.73},
+    {"group": "Oxide",                "rb_pct": -1.48},
+    {"group": "Eclipse PVA",          "rb_pct": -0.08},
+    {"group": "Road Marking",         "rb_pct": 0.63},
+    {"group": "Rugged Beauty",        "rb_pct": 0.92},
+    {"group": "RainProof",            "rb_pct": 1.08},
+    {"group": "Fibre Restore",        "rb_pct": 1.27},
+    {"group": "Master Decorators",    "rb_pct": 1.31},
+    {"group": "High Gloss",           "rb_pct": 1.65},
+    {"group": "Primer",               "rb_pct": 1.87},
+    {"group": "Putty",                "rb_pct": 2.57},
+    {"group": "Thinner",              "rb_pct": 2.69},
+    {"group": "Sanding Sealer",       "rb_pct": 3.23},
+    {"group": "Universal Roof Paint", "rb_pct": 3.23},
+    {"group": "Plaster n Tile Bond",  "rb_pct": 3.38},
+    {"group": "Stainer",              "rb_pct": 3.85},
+    {"group": "Suburban Bliss",       "rb_pct": 3.95},
+    {"group": "Zinc Phosphate",       "rb_pct": 4.98},
+    {"group": "Pick & Save",          "rb_pct": 5.18},
     {"group": "Wood Varnish",       "rb_pct": 5.22},
     {"group": "Natural Elegance",   "rb_pct": 5.33},
     {"group": "Decor",              "rb_pct": 5.34},
@@ -904,8 +904,8 @@ def write_kpi_status(generated: str):
         ],
         "scoreable_weight_pct": 50,
         "risk_items": [
-            {"item": f"BV below Q2 target by {abs(next(r['yoy'] for r in REPS if r['code']=='BV')):.1f}% YOY", "severity": "high"},
-            {"item": f"NP below Q2 target by {abs(next(r['yoy'] for r in REPS if r['code']=='NP')):.1f}% YOY", "severity": "high"},
+            {"item": f"BV {next(r['pct'] for r in REPS if r['code']=='BV'):.1f}% vs target MTD", "severity": "high"},
+            {"item": f"NP {next(r['pct'] for r in REPS if r['code']=='NP'):.1f}% vs target MTD", "severity": "high"},
             {"item": f"{len([x for x in RB_BY_PRODUCT if x['rb_pct'] < 0])} product groups trading below rock bottom", "severity": "high"},
             {"item": "Cassim Tayob customer at -37.14% rock bottom", "severity": "high"},
             {"item": f"{OVERDUE_60D_PCT}% of debtors overdue >60 days (target <10%)", "severity": "high"},
