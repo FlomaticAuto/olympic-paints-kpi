@@ -2,193 +2,682 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Olympic Paints &mdash; KPI Management Overview</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Olympic Paints — Weekly KPI Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
-  :root{--orange:#E85D04;--dark:#1A1A2E;--mid:#2D2D44;--light:#F5F5F0;
-    --gold:#F4A261;--teal:#2EC4B6;--red:#E63946;--green:#2DC653;
-    --amber:#F4A261;--card:#FFF;--border:#E8E8E0;--muted:#6B7280}
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--light);color:var(--dark)}
-  .hdr{background:linear-gradient(135deg,var(--dark),var(--mid));color:#fff;
-    padding:20px 40px;display:flex;align-items:center;justify-content:space-between;
-    position:sticky;top:0;z-index:100;box-shadow:0 4px 20px rgba(0,0,0,.3)}
-  .hdr-l{display:flex;align-items:center;gap:16px}
-  .logo{width:48px;height:48px;background:var(--orange);border-radius:50%;
-    display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;color:#fff}
-  .hdr-title{font-size:19px;font-weight:700}
-  .hdr-sub{font-size:11px;color:rgba(255,255,255,.5);margin-top:2px}
-  .hdr-val{font-size:15px;font-weight:700;color:var(--gold)}
-  .hdr-gen{font-size:11px;color:rgba(255,255,255,.4)}
-  .tab-bar{background:var(--dark);padding:0 40px;display:flex;gap:4px}
-  .tab-btn{background:transparent;border:none;color:rgba(255,255,255,.5);
-    padding:12px 18px;font-size:13px;font-weight:600;cursor:pointer;
-    border-bottom:3px solid transparent;transition:all .2s}
-  .tab-btn:hover{color:#fff}
-  .tab-btn.active{color:var(--orange);border-bottom-color:var(--orange)}
-  .main{padding:28px 40px;max-width:1400px;margin:0 auto}
-  .tab-panel{display:none}.tab-panel.active{display:block}
-  .stitle{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;
-    color:var(--orange);margin:28px 0 14px;display:flex;align-items:center;gap:10px}
-  .stitle::after{content:'';flex:1;height:1px;background:var(--border)}
-  .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
-  .kpi{background:var(--card);border-radius:12px;padding:18px 20px;
-    border:1px solid var(--border);box-shadow:0 2px 8px rgba(0,0,0,.05)}
-  .kpi-label{font-size:10px;font-weight:700;text-transform:uppercase;
-    letter-spacing:1px;color:var(--muted);margin-bottom:6px}
-  .kpi-value{font-size:22px;font-weight:800;line-height:1}
-  .kpi-delta{margin-top:6px;font-size:12px;font-weight:600}
-  .kpi-delta.up{color:var(--green)}.kpi-delta.dn{color:var(--red)}
-  .kpi-delta.warn{color:#c07000}.kpi-delta.neu{color:var(--muted)}
-  .g2{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
-  .card{background:var(--card);border-radius:12px;padding:20px;
-    border:1px solid var(--border);box-shadow:0 2px 8px rgba(0,0,0,.05)}
-  .card-title{font-size:14px;font-weight:700;margin-bottom:4px}
-  .card-sub{font-size:11px;color:var(--muted);margin-bottom:8px}
-  .chart-wrap{position:relative;margin-top:12px}
-  .chart-wrap.h200{height:200px}.chart-wrap.h280{height:280px}.chart-wrap.h300{height:300px}
-  .tw{overflow-x:auto;margin-top:12px}
-  table{width:100%;border-collapse:collapse;font-size:13px}
-  thead tr{background:var(--dark);color:#fff}
-  thead th{padding:9px 12px;text-align:left;font-size:10px;font-weight:600;
-    text-transform:uppercase;letter-spacing:.8px;white-space:nowrap}
-  tbody tr{border-bottom:1px solid var(--border)}
-  tbody tr:hover{background:rgba(232,93,4,.04)}
-  tbody td{padding:8px 12px;vertical-align:middle}
-  .pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700}
-  .pill.grn{background:rgba(45,198,83,.12);color:#1a9e3f}
-  .pill.red{background:rgba(230,57,70,.12);color:#c0392b}
-  .pill.amb{background:rgba(244,162,97,.15);color:#c07000}
-  .pill.neu{background:rgba(107,114,128,.1);color:var(--muted)}
-  @media(max-width:900px){.main{padding:16px}.g2{grid-template-columns:1fr}}
+  :root {
+    --orange: #E85D04; --dark: #1A1A2E; --mid: #2D2D44; --light: #F5F5F0;
+    --gold: #F4A261; --teal: #2EC4B6; --red: #E63946; --green: #2DC653;
+    --amber: #F4A261; --card: #FFFFFF; --border: #E8E8E0; --muted: #6B7280;
+    --warn-bg: #FFF7E6; --warn-border: #F4A261;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--light); color: var(--dark); }
 
-  .rep-links{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px}
-  .rep-link{background:var(--card);border:1px solid var(--border);border-radius:8px;
-    padding:10px 18px;text-decoration:none;color:var(--dark);font-weight:600;font-size:13px;
-    transition:all .2s}
-  .rep-link:hover{border-color:var(--orange);color:var(--orange)}
+  .header { background: linear-gradient(135deg, var(--dark), var(--mid)); color: #fff;
+    padding: 22px 40px; display: flex; align-items: center; justify-content: space-between;
+    box-shadow: 0 4px 20px rgba(0,0,0,.3); position: sticky; top: 0; z-index: 100; }
+  .header-left { display: flex; align-items: center; gap: 18px; }
+  .logo { width: 52px; height: 52px; background: var(--orange); border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 20px;
+    font-weight: 900; color: #fff; box-shadow: 0 0 0 3px rgba(232,93,4,.3); }
+  .header-title { font-size: 21px; font-weight: 700; }
+  .header-sub { font-size: 12px; color: rgba(255,255,255,.55); margin-top: 2px; }
+  .header-right { text-align: right; }
+  .header-week { font-size: 15px; font-weight: 700; color: var(--gold); }
+  .header-gen { font-size: 11px; color: rgba(255,255,255,.4); margin-top: 3px; }
+
+  .main { padding: 32px 40px; max-width: 1600px; margin: 0 auto; }
+
+  .section-title { font-size: 12px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1.5px; color: var(--orange); margin: 36px 0 16px;
+    display: flex; align-items: center; gap: 10px; }
+  .section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+  .kpi { background: var(--card); border-radius: 12px; padding: 20px 22px;
+    border: 1px solid var(--border); box-shadow: 0 2px 8px rgba(0,0,0,.05);
+    transition: transform .2s; }
+  .kpi:hover { transform: translateY(-2px); }
+  .kpi-label { font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 1px; color: var(--muted); margin-bottom: 8px; }
+  .kpi-value { font-size: 26px; font-weight: 800; line-height: 1; }
+  .kpi-delta { margin-top: 8px; font-size: 12px; font-weight: 600; }
+  .kpi-delta.up { color: var(--green); } .kpi-delta.dn { color: var(--red); }
+  .kpi-delta.warn { color: #c07000; } .kpi-delta.neu { color: var(--muted); }
+  .kpi-bar { height: 4px; background: var(--border); border-radius: 2px; margin-top: 10px; }
+  .kpi-bar-fill { height: 100%; border-radius: 2px; }
+
+  .g2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+  .g3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .card { background: var(--card); border-radius: 12px; padding: 24px;
+    border: 1px solid var(--border); box-shadow: 0 2px 8px rgba(0,0,0,.05); }
+  .card.full { grid-column: 1 / -1; }
+  .card-title { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+  .card-sub { font-size: 11px; color: var(--muted); }
+  .chart-wrap { position: relative; margin-top: 16px; }
+  .chart-wrap.h260 { height: 260px; } .chart-wrap.h320 { height: 320px; }
+  .chart-wrap.h200 { height: 200px; } .chart-wrap.h400 { height: 400px; }
+
+  .tw { overflow-x: auto; margin-top: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead tr { background: var(--dark); color: #fff; }
+  thead th { padding: 10px 12px; text-align: left; font-size: 10px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .8px; white-space: nowrap; }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background .15s; }
+  tbody tr:hover { background: rgba(232,93,4,.04); }
+  tbody td { padding: 9px 12px; vertical-align: middle; }
+
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 20px;
+    font-size: 11px; font-weight: 700; white-space: nowrap; }
+  .pill.green  { background: rgba(45,198,83,.12);  color: #1a9e3f; }
+  .pill.red    { background: rgba(230,57,70,.12);  color: #c0392b; }
+  .pill.amber  { background: rgba(244,162,97,.15); color: #c07000; }
+  .pill.neutral{ background: rgba(107,114,128,.1); color: var(--muted); }
+
+  .warn-banner { background: var(--warn-bg); border: 1px solid var(--warn-border);
+    border-radius: 10px; padding: 16px 20px; margin-bottom: 20px;
+    font-size: 13px; color: #7a4900; line-height: 1.6; }
+  .warn-banner strong { color: #c07000; }
+
+  .data-gap-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+  .gap-card { background: #fff7f0; border: 1px solid #f4a261; border-radius: 10px;
+    padding: 16px; }
+  .gap-card h4 { font-size: 13px; font-weight: 700; color: var(--orange); margin-bottom: 6px; }
+  .gap-card p { font-size: 12px; color: #6b4b2a; line-height: 1.5; }
+  .gap-badge { display: inline-block; background: var(--orange); color: #fff;
+    border-radius: 4px; font-size: 10px; font-weight: 700; padding: 1px 6px; margin-right: 4px; }
+
+  footer { text-align: center; padding: 28px 40px; font-size: 11px; color: var(--muted);
+    border-top: 1px solid var(--border); margin-top: 40px; line-height: 1.6; }
+
+  @media (max-width: 900px) {
+    .main { padding: 20px; }
+    .header { padding: 16px 20px; }
+    .g2, .g3 { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>
 
-<div class="hdr" style="max-width:none">
-  <div class="hdr-l">
+<div class="header">
+  <div class="header-left">
     <div class="logo">OP</div>
     <div>
-      <div class="hdr-title">Olympic Paints &mdash; KPI Overview</div>
-      <div class="hdr-sub">Management Dashboard &middot; FY2026 YTD</div>
+      <div class="header-title">Olympic Paints</div>
+      <div class="header-sub">Weekly KPI Dashboard — Sales Operations</div>
     </div>
   </div>
-  <div style="text-align:right">
-    <div class="hdr-val" style="color:var(--green)">+23.8% Company YoY</div>
-    <div class="hdr-gen">Generated 05 May 2026 16:37</div>
+  <div class="header-right">
+    <div class="header-week">Week ending 1 May 2026</div>
+    <div class="header-gen">Generated 06 May 2026 07:50</div>
   </div>
 </div>
 
-<div class="main" style="max-width:1600px">
+<div class="main">
 
-  <div class="rep-links"><a class="rep-link" href="https://flomaticauto.github.io/olympic-paints-kpi-bv/">Bhadresh Vallabh</a> <a class="rep-link" href="https://flomaticauto.github.io/olympic-paints-kpi-np/">Nikhil Panchal</a> <a class="rep-link" href="https://flomaticauto.github.io/olympic-paints-kpi-ap/">Amit Patel</a> <a class="rep-link" href="https://flomaticauto.github.io/olympic-paints-kpi-ac/">Aboo Cassim</a> <a class="rep-link" href="https://flomaticauto.github.io/olympic-paints-kpi-bm/">Byron Minnie</a></div>
+  <!-- ALERT BANNER -->
+  <div class="warn-banner" style="margin-top:24px">
+    <strong>⚠ Partial KPI Scoring — Action Required</strong><br>
+    This report can only score <strong>KPI A (Sales Growth)</strong> from current data.
+    KPIs B, C, D &amp; E require CRM exports, store visit logs, and training records
+    which are <strong>not yet included in the automated weekly report</strong>.
+    See the <a href="#data-gaps" style="color:var(--orange)">Data Gaps section</a> for what is needed.
+  </div>
 
-  <div class="kpi-grid" style="margin-bottom:24px">
+  <!-- EXECUTIVE SUMMARY -->
+  <div class="section-title">Executive Summary — Week Ending 1 May 2026</div>
+  <div class="kpi-grid">
     <div class="kpi">
-      <div class="kpi-label">Company FY2026 YTD</div>
-      <div class="kpi-value">R23.25M</div>
-      <div class="kpi-delta neu">Same period FY25: R18.79M</div>
+      <div class="kpi-label">MTD Sales</div>
+      <div class="kpi-value">R12.80M</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" style="width:100%;background:var(--amber)"></div></div>
+      <div class="kpi-delta warn">▼ 0.1% below monthly target</div>
     </div>
     <div class="kpi">
-      <div class="kpi-label">Company YoY Growth</div>
-      <div class="kpi-value" style="color:var(--green)">+23.8%</div>
-      <div class="kpi-delta up">vs same months FY2025</div>
+      <div class="kpi-label">Monthly Target</div>
+      <div class="kpi-value">R12.81M</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" style="width:100%;background:var(--muted)"></div></div>
+      <div class="kpi-delta neu">Gap: R18.3K</div>
     </div>
     <div class="kpi">
-      <div class="kpi-label">Total Debtors</div>
-      <div class="kpi-value">R20.38M</div>
+      <div class="kpi-label">Outstanding Debtors</div>
+      <div class="kpi-value" style="font-size:20px">R20.92M</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" style="width:100%;background:var(--red)"></div></div>
+      <div class="kpi-delta dn">▲ R4.50M (&gt;90 days)</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">% Overdue &gt;60 Days</div>
+      <div class="kpi-value">21.5%</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" style="width:86%;background:var(--red)"></div></div>
+      <div class="kpi-delta dn">▲ Above 10% threshold — collections attention needed</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Rock Bottom % (avg)</div>
+      <div class="kpi-value">9.8%</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" style="width:65%;background:var(--amber)"></div></div>
+      <div class="kpi-delta warn">▼ Target: 15.0% — 5.2% gap</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Team Sales Attainment</div>
+      <div class="kpi-value">-0.3%</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" style="width:100%;background:var(--amber)"></div></div>
+      <div class="kpi-delta warn">▼ Behind — R12.77M vs R12.81M</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">E-Commerce Orders</div>
+      <div class="kpi-value">69</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" style="width:60%;background:var(--teal)"></div></div>
+      <div class="kpi-delta neu">123 units — see fulfilment section</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">YOY Growth (Apr)</div>
+      <div class="kpi-value">+16.1%</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" style="width:60%;background:var(--green)"></div></div>
+      <div class="kpi-delta up">▲ Apr 2026 vs Apr 2025</div>
     </div>
   </div>
 
-  <div class="stitle">Rep Scorecard</div>
-  <div class="tw"><table>
-    <thead><tr>
-      <th>Rep</th>
-      <th style="text-align:right">FY26 YTD</th>
-      <th style="text-align:right">Same-P FY25</th>
-      <th style="text-align:right">30% Target</th>
-      <th>KPI A</th>
-      <th style="text-align:right">RB%</th>
-      <th style="text-align:right">Visits</th>
-      <th style="text-align:right">Debtors</th>
-      <th style="text-align:right">60+ Days</th>
-    </tr></thead>
-    <tbody><tr><td><strong>BV</strong> <small style="color:var(--muted)">Bhadresh Vallabh</small></td><td style="text-align:right">R9.47M</td><td style="text-align:right">R7.63M</td><td style="text-align:right">R9.92M</td><td><span class="pill grn">&#10003; +24.1% YoY</span></td><td style="text-align:right">74.9%</td><td style="text-align:right">241</td><td style="text-align:right">R5.08M</td><td style="text-align:right;color:var(--red)">R1.05M</td></tr><tr><td><strong>NP</strong> <small style="color:var(--muted)">Nikhil Panchal</small></td><td style="text-align:right">R7.80M</td><td style="text-align:right">R7.21M</td><td style="text-align:right">R9.37M</td><td><span class="pill amb">&#9888; +8.1% YoY</span></td><td style="text-align:right">79.3%</td><td style="text-align:right">251</td><td style="text-align:right">R9.07M</td><td style="text-align:right;color:var(--red)">R3.66M</td></tr><tr><td><strong>AP</strong> <small style="color:var(--muted)">Amit Patel</small></td><td style="text-align:right">R3.06M</td><td style="text-align:right">R1.67M</td><td style="text-align:right">R2.17M</td><td><span class="pill grn">&#10003; +83.7% YoY</span></td><td style="text-align:right">90.1%</td><td style="text-align:right">152</td><td style="text-align:right">R3.04M</td><td style="text-align:right;color:var(--red)">R778.3K</td></tr><tr><td><strong>AC</strong> <small style="color:var(--muted)">Aboo Cassim</small></td><td style="text-align:right">R2.37M</td><td style="text-align:right">R2.29M</td><td style="text-align:right">R2.97M</td><td><span class="pill amb">&#9888; +3.6% YoY</span></td><td style="text-align:right">64.2%</td><td style="text-align:right">282</td><td style="text-align:right">R3.03M</td><td style="text-align:right;color:var(--red)">R843.0K</td></tr><tr><td><strong>BM</strong> <small style="color:var(--muted)">Byron Minnie</small></td><td style="text-align:right">R74.0K</td><td style="text-align:right">R0</td><td style="text-align:right">—</td><td><span class="pill neu">No data</span></td><td style="text-align:right">91.7%</td><td style="text-align:right">469</td><td style="text-align:right">R21.1K</td><td style="text-align:right;color:var(--red)">R983</td></tr></tbody>
-  </table></div>
+  <!-- KPI COMPLIANCE SCORECARD -->
+  <div class="section-title">KPI Compliance Scorecard — Per Rep</div>
+  <div class="warn-banner">
+    <strong>Scoring Status:</strong>
+    &nbsp;<span class="pill green" style="font-size:11px">A — Sales Growth</span> Scored from QuickSight data.
+    &nbsp;<span class="pill neutral" style="font-size:11px">B — CRM</span>
+    <span class="pill neutral" style="font-size:11px">C — Product Dev</span>
+    <span class="pill neutral" style="font-size:11px">D — New Customers</span>
+    <span class="pill neutral" style="font-size:11px">E — Training</span>
+    These 4 categories cannot be scored — data not in current report export.
+    <strong>Total scoreable weight this week: 50% of 100%.</strong>
+  </div>
+  <div class="card full">
+    <div class="card-title">Rep KPI Agreement Scorecard</div>
+    <div class="card-sub">Based on Sales Rep KPI Agreement 2025 — 5 weighted categories</div>
+    <div class="tw">
+      <table>
+        <thead>
+          <tr>
+            <th>Rep</th>
+            <th>MTD Sales</th>
+            <th>Monthly Target</th>
+            <th>vs Target</th>
+            <th>Rock Bottom %</th>
+            <th>A — Sales Growth (50%)</th>
+            <th>B — CRM Dev (20%)</th>
+            <th>C — Product Dev (10%)</th>
+            <th>D — New Customers (10%)</th>
+            <th>E — Training (10%)</th>
+            <th>Approved Orders</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>AC</strong><br><small style="color:var(--muted)">Aboo Cassim</small></td>
+            <td>R1.63M</td>
+            <td>R1.16M</td>
+            <td><span class="pill green">+28.7%</span></td>
+            <td><span class="pill neutral">No data</span></td>
+            <td><span class="pill neutral">—</span></td>
+            <td><span class="pill neutral" title="CRM data required">⚠ No data</span></td>
+            <td><span class="pill neutral" title="Product dev data required">⚠ No data</span></td>
+            <td><span class="pill neutral" title="New customer data required">⚠ No data</span></td>
+            <td><span class="pill neutral" title="Training data required">⚠ No data</span></td>
+            <td>R152.5K</td>
+          </tr>
+          <tr>
+            <td><strong>AP</strong><br><small style="color:var(--muted)">Amit Patel</small></td>
+            <td>R2.00M</td>
+            <td>R1.58M</td>
+            <td><span class="pill green">+20.7%</span></td>
+            <td><span class="pill green">8.8%</span></td>
+            <td><span class="pill neutral">—</span></td>
+            <td><span class="pill neutral" title="CRM data required">⚠ No data</span></td>
+            <td><span class="pill neutral" title="Product dev data required">⚠ No data</span></td>
+            <td><span class="pill neutral" title="New customer data required">⚠ No data</span></td>
+            <td><span class="pill neutral" title="Training data required">⚠ No data</span></td>
+            <td>R320.0K</td>
+          </tr>
+          <tr>
+            <td><strong>BV</strong><br><small style="color:var(--muted)">Bhadresh Vallabh</small></td>
+            <td>R4.41M</td>
+            <td>R5.13M</td>
+            <td><span class="pill red">-16.3%</span></td>
+            <td><span class="pill neutral">No data</span></td>
+            <td><span class="pill neutral">—</span></td>
+            <td><span class="pill neutral" title="CRM data required">⚠ No data</span></td>
+            <td><span class="pill neutral" title="Product dev data required">⚠ No data</span></td>
+            <td><span class="pill neutral" title="New customer data required">⚠ No data</span></td>
+            <td><span class="pill neutral" title="Training data required">⚠ No data</span></td>
+            <td>R1.57M</td>
+          </tr>
+          <tr>
+            <td><strong>NP</strong><br><small style="color:var(--muted)">Nikhil Panchal</small></td>
+            <td>R4.74M</td>
+            <td>R4.94M</td>
+            <td><span class="pill amber">-4.3%</span></td>
+            <td><span class="pill green">8.8%</span></td>
+            <td><span class="pill neutral">—</span></td>
+            <td><span class="pill neutral" title="CRM data required">⚠ No data</span></td>
+            <td><span class="pill neutral" title="Product dev data required">⚠ No data</span></td>
+            <td><span class="pill neutral" title="New customer data required">⚠ No data</span></td>
+            <td><span class="pill neutral" title="Training data required">⚠ No data</span></td>
+            <td>R977.0K</td>
+          </tr>
+          <tr>
+            <td><strong>BM</strong><br><small style="color:var(--muted)">Byron Minnie</small></td>
+            <td>R23.9K</td>
+            <td>—</td>
+            <td><span class="pill neutral">Internal</span></td>
+            <td><span class="pill neutral">No data</span></td>
+            <td><span class="pill neutral">—</span></td>
+            <td><span class="pill neutral" title="CRM data required">⚠ No data</span></td>
+            <td><span class="pill neutral" title="Product dev data required">⚠ No data</span></td>
+            <td><span class="pill neutral" title="New customer data required">⚠ No data</span></td>
+            <td><span class="pill neutral" title="Training data required">⚠ No data</span></td>
+            <td>—</td>
+          </tr></tbody>
+      </table>
+    </div>
+    <p style="margin-top:12px;font-size:11px;color:var(--muted)">
+      KPI A scoring uses YOY growth vs prior year baseline. Per the KPI Agreement: growth must exceed 10% above baseline
+      to qualify for commission. Reps below 10% YOY growth do not qualify for KPI A incentive this period.
+    </p>
+  </div>
 
-  <div class="g2" style="margin-top:24px">
+  <!-- REP PERFORMANCE CHARTS -->
+  <div class="section-title">Rep Sales Performance — April 2026</div>
+  <div class="g2">
     <div class="card">
-      <div class="card-title">Revenue vs Same-Period FY2025 + 30% Target</div>
-      <div class="chart-wrap h280"><canvas id="cOvRev"></canvas></div>
+      <div class="card-title">MTD Sales vs Monthly Target</div>
+      <div class="card-sub">R values for week ending 1 May 2026</div>
+      <div class="chart-wrap h320"><canvas id="cRepTarget"></canvas></div>
     </div>
     <div class="card">
-      <div class="card-title">Rock Bottom Compliance % (2026)</div>
-      <div class="chart-wrap h280"><canvas id="cOvRB"></canvas></div>
+      <div class="card-title">Q2 Target Tracking — YTD vs Q2 Target</div>
+      <div class="card-sub">Quarter 2 cumulative — April 2026</div>
+      <div class="chart-wrap h320"><canvas id="cQ2Track"></canvas></div>
     </div>
   </div>
 
-  <div class="g2" style="margin-top:18px">
+  <!-- YOY -->
+  <div class="section-title">Year-on-Year Sales Comparison</div>
+  <div class="g2">
     <div class="card">
-      <div class="card-title">Debtors by Rep (Current+30d vs 60+ Days)</div>
-      <div class="chart-wrap h280"><canvas id="cOvDeb"></canvas></div>
+      <div class="card-title">Monthly Sales: 2025 vs 2026</div>
+      <div class="card-sub">Jan–Apr comparison</div>
+      <div class="chart-wrap h260"><canvas id="cYOY"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">YOY Growth % by Month</div>
+      <div class="card-sub">Positive = ahead of prior year</div>
+      <div class="chart-wrap h260"><canvas id="cYOYpct"></canvas></div>
+    </div>
+  </div>
+
+  <!-- ROCK BOTTOM ANALYSIS -->
+  <div class="section-title">Margin Health — Rock Bottom Analysis</div>
+  <div class="warn-banner">
+    <strong>⚠ Margin Risk:</strong> Company average rock bottom margin is <strong>9.8%</strong>
+    against a target of <strong>15.0%</strong>.
+    13 product groups are trading <strong>below rock bottom</strong> (negative margin).
+    Immediate pricing review required for highlighted accounts and products.
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="card-title">Rock Bottom % — Product Groups (Selected)</div>
+      <div class="card-sub">Red = below rock bottom, Amber = below 8% target, Green = healthy</div>
+      <div class="chart-wrap h400"><canvas id="cRBProduct"></canvas></div>
+    </div>
+    <div class="g2" style="display:flex;flex-direction:column;gap:20px">
+      <div class="card">
+        <div class="card-title">Customers at Risk — Rock Bottom %</div>
+        <div class="card-sub">Accounts trading below or near rock bottom price</div>
+        <div class="tw">
+          <table>
+            <thead><tr><th>Customer</th><th>Rock Bottom %</th></tr></thead>
+            <tbody>
+          <tr>
+            <td>Cassim Tayob</td>
+            <td><span class="pill red">✗ -37.1%</span></td>
+          </tr>
+          <tr>
+            <td>Patels Hardware</td>
+            <td><span class="pill red">✗ -17.1%</span></td>
+          </tr>
+          <tr>
+            <td>Dainty's Wholesale</td>
+            <td><span class="pill red">✗ -12.8%</span></td>
+          </tr>
+          <tr>
+            <td>Dada's World of Hard.</td>
+            <td><span class="pill red">✗ -11.8%</span></td>
+          </tr>
+          <tr>
+            <td>HGM Steelboys CC</td>
+            <td><span class="pill red">✗ -2.1%</span></td>
+          </tr>
+          <tr>
+            <td>Brits Hardware & Gla.</td>
+            <td><span class="pill amber">⚠ 4.1%</span></td>
+          </tr>
+          <tr>
+            <td>Del Piero Trading CC</td>
+            <td><span class="pill amber">⚠ 1.6%</span></td>
+          </tr>
+          <tr>
+            <td>Myka Trade 2</td>
+            <td><span class="pill amber">⚠ 5.3%</span></td>
+          </tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Product Groups Below Rock Bottom</div>
+        <div class="card-sub">Negative margin — requires immediate price correction</div>
+        <div class="tw">
+          <table>
+            <thead><tr><th>Product Group</th><th>Rock Bottom %</th></tr></thead>
+            <tbody>
+          <tr>
+            <td>Ultimate Shine</td>
+            <td><span class="pill red">✗ -24.3%</span></td>
+          </tr>
+          <tr>
+            <td>Membrane</td>
+            <td><span class="pill red">✗ -23.7%</span></td>
+          </tr>
+          <tr>
+            <td>Etch Primer</td>
+            <td><span class="pill red">✗ -8.6%</span></td>
+          </tr>
+          <tr>
+            <td>Rust Remover</td>
+            <td><span class="pill red">✗ -6.8%</span></td>
+          </tr>
+          <tr>
+            <td>Distemper</td>
+            <td><span class="pill red">✗ -6.2%</span></td>
+          </tr>
+          <tr>
+            <td>LIBERTY</td>
+            <td><span class="pill red">✗ -4.8%</span></td>
+          </tr>
+          <tr>
+            <td>Wood Primer</td>
+            <td><span class="pill red">✗ -4.5%</span></td>
+          </tr>
+          <tr>
+            <td>7 in 1 PVA</td>
+            <td><span class="pill red">✗ -3.9%</span></td>
+          </tr>
+          <tr>
+            <td>Kalahari Contractors</td>
+            <td><span class="pill red">✗ -3.8%</span></td>
+          </tr>
+          <tr>
+            <td>All In One</td>
+            <td><span class="pill red">✗ -2.7%</span></td>
+          </tr>
+          <tr>
+            <td>Hi Hiding Contr</td>
+            <td><span class="pill red">✗ -1.7%</span></td>
+          </tr>
+          <tr>
+            <td>Oxide</td>
+            <td><span class="pill red">✗ -1.5%</span></td>
+          </tr>
+          <tr>
+            <td>Eclipse PVA</td>
+            <td><span class="pill red">✗ -0.1%</span></td>
+          </tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PRODUCT MIX -->
+  <div class="section-title">Product Mix — Revenue Distribution</div>
+  <div class="g2">
+    <div class="card">
+      <div class="card-title">Revenue by Product Category (April 2026)</div>
+      <div class="card-sub">Based on average group sales values from weekly report</div>
+      <div class="chart-wrap h260"><canvas id="cProductMix"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Debtors &amp; Collections Health</div>
+      <div class="card-sub">Outstanding debt position — week ending 1 May 2026</div>
+      <div style="margin-top:20px">
+        <div style="display:flex;gap:16px;flex-wrap:wrap">
+          <div style="flex:1;min-width:140px;background:#fff0f0;border-radius:10px;padding:16px;border:1px solid #fcc">
+            <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase">Total Debtors</div>
+            <div style="font-size:22px;font-weight:800;color:var(--dark);margin-top:4px">R20.92M</div>
+          </div>
+          <div style="flex:1;min-width:140px;background:#fff0f0;border-radius:10px;padding:16px;border:1px solid #fcc">
+            <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase">Overdue &gt;90 Days</div>
+            <div style="font-size:22px;font-weight:800;color:var(--red);margin-top:4px">R4.50M</div>
+          </div>
+          <div style="flex:1;min-width:140px;background:#fff7e6;border-radius:10px;padding:16px;border:1px solid #f4a261">
+            <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase">% Overdue &gt;60d</div>
+            <div style="font-size:22px;font-weight:800;color:#c07000;margin-top:4px">21.5%</div>
+            <div style="font-size:11px;color:#c07000;margin-top:4px">Target: &lt;10%</div>
+          </div>
+        </div>
+        <p style="margin-top:16px;font-size:12px;color:var(--muted);line-height:1.6">
+          Collections are a qualifying condition for KPI A commission.
+          Only invoices settled within 30–60 days qualify under the KPI Agreement.
+          A collections audit is required to determine which rep sales are eligible.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- E-COMMERCE -->
+  <div class="section-title">E-Commerce Fulfilment — 21 April 2026</div>
+  <div class="g3">
+    <div class="card">
+      <div class="kpi-label">Total Open Orders</div>
+      <div class="kpi-value" style="font-size:36px;color:var(--dark)">69</div>
+      <div class="kpi-delta neu">123 total units</div>
+    </div>
+    <div class="card">
+      <div class="kpi-label">Orders by Age in System</div>
+      <div style="margin-top:12px">
+        <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:13px"><span>1-5 days</span><span style="font-weight:700">12 orders</span></div><div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:13px"><span>6-9 days</span><span style="font-weight:700">21 orders</span></div><div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:13px"><span>10-14 days</span><span style="font-weight:700">14 orders</span></div><div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:13px"><span>15+ days</span><span style="font-weight:700">22 orders</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="kpi-label">Fulfilment Risk Notes</div>
+      <p style="font-size:12px;color:var(--muted);margin-top:10px;line-height:1.6">
+        22 orders are 15+ days in system. Key statuses: <strong>pending</strong> (unconfirmed),
+        <strong>manufacturing</strong> (in production), <strong>on-hold</strong> (blocked).
+        Multiple orders to <em>Deniz</em>, <em>Latticia</em>, and <em>Lynette</em> accounts are ageing.
+        Dispatch target dates have been exceeded for most open orders.
+      </p>
+    </div>
+  </div>
+
+  <!-- DATA GAPS -->
+  <div class="section-title" id="data-gaps">Data Gaps — What Is Needed to Complete KPI Scoring</div>
+  <div class="data-gap-grid">
+    <div class="gap-card">
+      <h4><span class="gap-badge">B</span> CRM &amp; Customer Development (20%)</h4>
+      <p>Need: Monthly CRM export showing new and reactivated customers logged per rep.
+      Minimum 5 per rep per month for full score. Currently showing "No data" in QuickSight report.</p>
+    </div>
+    <div class="gap-card">
+      <h4><span class="gap-badge">C</span> Product Development Upsells (10%)</h4>
+      <p>Need: CRM records of upsell activities — product, customer, date, evidence photo.
+      Focus products defined quarterly (e.g. Natural Elegance, 7-in-1 PVA, Fibre Restore).
+      Minimum 4–5 per rep per month.</p>
+    </div>
+    <div class="gap-card">
+      <h4><span class="gap-badge">D</span> New Customer Onboarding (10%)</h4>
+      <p>Need: List of new trading customers onboarded this month per rep —
+      credit application completed, first invoice issued, CRM logged.
+      Minimum 2 per rep per month.</p>
+    </div>
+    <div class="gap-card">
+      <h4><span class="gap-badge">E</span> Training &amp; Merchandising (10%)</h4>
+      <p>Need: Training attendance lists, photos, and reports per key account.
+      Also POS / branding compliance photo evidence.
+      Minimum 1 training per key account per month.</p>
+    </div>
+    <div class="gap-card">
+      <h4><span class="gap-badge">A</span> Collections Audit (50%)</h4>
+      <p>Need: Per-rep collections rate — which invoices have been settled within 30–60 days.
+      Only settled invoices qualify for KPI A commission.
+      Current data shows sales only, not settlement status.</p>
+    </div>
+    <div class="gap-card">
+      <h4><span class="gap-badge">+</span> Store Visit Counts</h4>
+      <p>QuickSight shows "No data" for store visits per sales manager.
+      This data may exist in Zoho CRM. A weekly export of visit logs per rep
+      is required to score visit frequency against call cycle targets.</p>
+    </div>
+    <div class="gap-card">
+      <h4><span class="gap-badge">+</span> Leads Created</h4>
+      <p>QuickSight shows "No data" for leads created per rep.
+      Required to measure pipeline development and new store identification
+      per the KPI framework and new store qualification SOP.</p>
+    </div>
+    <div class="gap-card">
+      <h4><span class="gap-badge">+</span> Rock Bottom per Rep</h4>
+      <p>Rock bottom % is available for some reps (AP: 8.85%, NP: 8.82%) but not all.
+      A full per-rep rock bottom % is needed to assess margin discipline per rep,
+      not just at product group level.</p>
     </div>
   </div>
 
 </div>
+
+<footer>
+  <strong>Olympic Paints</strong> · Weekly KPI Dashboard · Week ending 1 May 2026<br>
+  Data sourced from Amazon QuickSight Weekly Sales Reports (Weekly Progress folder).<br>
+  KPI scoring requires additional CRM and activity data not yet available in automated export.<br>
+  Based on: Sales Rep KPI Agreement 2025/01 — 5 weighted categories (Sales Growth 50% | CRM 20% | Product Dev 10% | New Customers 10% | Training 10%)<br>
+  Generated 06 May 2026 07:50
+</footer>
 
 <script>
-new Chart(document.getElementById('cOvRev'), {
+const O='#E85D04', R='#E63946', T='#2EC4B6', G='#2DC653', B='#457B9D', GD='#F4A261', DK='#1A1A2E';
+Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
+Chart.defaults.font.size = 12;
+Chart.defaults.color = '#6B7280';
+const grid = {color:'rgba(0,0,0,0.06)'};
+
+// Rep vs Target
+new Chart(document.getElementById('cRepTarget'), {
   type: 'bar',
   data: {
-    labels: ["Bhadresh", "Nikhil", "Amit", "Aboo", "Byron"],
+    labels: ["Aboo Cassim","Amit Patel","Bhadresh Vallabh","Nikhil Panchal","Byron Minnie"],
     datasets: [
-      {label:'Same-P FY2025', data:[7.628, 7.211, 1.665, 2.286, 0.0], backgroundColor:'rgba(46,196,182,.5)', borderRadius:0},
-      {label:'FY2026 YTD',    data:[9.468, 7.797, 3.059, 2.367, 0.074], backgroundColor:'rgba(232,93,4,.85)',  borderRadius:0},
-      {label:'30% Target',    data:[9.916, 9.374, 2.165, 2.971, 0.0],  backgroundColor:'transparent',
-        borderColor:'#F4A261', borderWidth:2, type:'line', pointRadius:5, tension:0}
+      {label:'MTD Sales',   data:[1626404.3,1996047.54,4411457.73,4738186.05,23949.07],  backgroundColor: O+'CC', borderRadius:6},
+      {label:'Monthly Target', data:[1160055.78,1582503.57,5131146.02,4940599.89,null], backgroundColor: 'rgba(107,114,128,0.25)', borderRadius:6}
     ]
   },
   options: {
     responsive:true, maintainAspectRatio:false,
-    plugins:{legend:{position:'bottom'}},
-    scales:{y:{ticks:{callback:v=>'R'+v.toFixed(1)+'M'}}}
+    plugins:{legend:{display:true,position:'bottom'},
+      tooltip:{callbacks:{label:c=>'R '+c.parsed.y.toLocaleString('en-ZA')}}},
+    scales:{y:{grid,ticks:{callback:v=>'R'+(v/1e6).toFixed(1)+'M'}},x:{grid:{display:false}}}
   }
 });
-new Chart(document.getElementById('cOvRB'), {
+
+// Q2 Tracking
+new Chart(document.getElementById('cQ2Track'), {
   type: 'bar',
   data: {
-    labels: ["Bhadresh", "Nikhil", "Amit", "Aboo", "Byron"],
-    datasets: [{data:[74.9, 79.3, 90.1, 64.2, 91.7], backgroundColor:["#F4A261", "#F4A261", "#2DC653", "#F4A261", "#2DC653"], borderRadius:6}]
-  },
-  options: {
-    responsive:true, maintainAspectRatio:false,
-    plugins:{legend:{display:false}},
-    scales:{y:{min:0, max:100, ticks:{callback:v=>v+'%'}}}
-  }
-});
-new Chart(document.getElementById('cOvDeb'), {
-  type: 'bar',
-  data: {
-    labels: ["Bhadresh", "Nikhil", "Amit", "Aboo", "Byron"],
+    labels: ["Aboo Cassim","Amit Patel","Bhadresh Vallabh","Nikhil Panchal"],
     datasets: [
-      {label:'Current+30d', data:[5.077, 9.067, 3.042, 3.027, 0.021].map((v,i) => +(v - [1.052, 3.663, 0.778, 0.843, 0.001][i]).toFixed(3)),
-        backgroundColor:'#2EC4B6', borderRadius:0},
-      {label:'60+ Days', data:[1.052, 3.663, 0.778, 0.843, 0.001], backgroundColor:'#E63946', borderRadius:0}
+      {label:'YTD Sales',  data:[1626404.3,1996047.54,4411457.73,4738186.05],  backgroundColor: O+'CC', borderRadius:6},
+      {label:'Q2 Target',  data:[2756633.76,2336788.38,10753757.53,9896452.05], backgroundColor: 'rgba(107,114,128,0.25)', borderRadius:6}
     ]
   },
   options: {
     responsive:true, maintainAspectRatio:false,
-    plugins:{legend:{position:'bottom'}},
-    scales:{x:{stacked:true}, y:{stacked:true, ticks:{callback:v=>'R'+v.toFixed(1)+'M'}}}
+    plugins:{legend:{display:true,position:'bottom'},
+      tooltip:{callbacks:{label:c=>'R '+c.parsed.y.toLocaleString('en-ZA')}}},
+    scales:{y:{grid,ticks:{callback:v=>'R'+(v/1e6).toFixed(1)+'M'}},x:{grid:{display:false}}}
   }
 });
+
+// YOY line
+new Chart(document.getElementById('cYOY'), {
+  type: 'line',
+  data: {
+    labels: ["Jan","Feb","Mar","Apr"],
+    datasets: [
+      {label:'2025', data:[7297999.94,8251126.12,11342188.94,9857157.89], borderColor:'rgba(107,114,128,0.6)', fill:false, tension:0.3, pointRadius:5, borderDash:[5,3]},
+      {label:'2026', data:[7617705.29,9875474.09,10504834.1,12796044.69], borderColor:O, fill:false, tension:0.3, pointRadius:6, borderWidth:2.5}
+    ]
+  },
+  options: {
+    responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{display:true,position:'bottom'},
+      tooltip:{callbacks:{label:c=>'R '+c.parsed.y.toLocaleString('en-ZA')}}},
+    scales:{y:{grid,ticks:{callback:v=>'R'+(v/1e6).toFixed(1)+'M'}},x:{grid:{display:false}}}
+  }
+});
+
+// YOY %
+new Chart(document.getElementById('cYOYpct'), {
+  type: 'bar',
+  data: {
+    labels: ["Jan","Feb","Mar","Apr"],
+    datasets: [{
+      label:'YOY Growth %', data:[4.38,19.69,-7.38,29.81],
+      backgroundColor: [4.38,19.69,-7.38,29.81].map(v=>v>=0?G+'CC':R+'CC'),
+      borderRadius: 6
+    }]
+  },
+  options: {
+    responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{display:false},
+      tooltip:{callbacks:{label:c=>c.parsed.y.toFixed(1)+'%'}}},
+    scales:{y:{grid,ticks:{callback:v=>v+'%'}},x:{grid:{display:false}}}
+  }
+});
+
+// RB by Product
+new Chart(document.getElementById('cRBProduct'), {
+  type: 'bar',
+  data: {
+    labels: ["Ultimate Shine","Membrane","Etch Primer","Rust Remover","Distemper","LIBERTY","Wood Primer","7 in 1 PVA","Kalahari Contractors","All In One","Roof & Stoep","FB Dressing","Bonding Liquid","3 in 1 Roof","Plaster Primer","3 in 1 Gripcoat","Q.D. Primer","Carbolineum"],
+    datasets: [{
+      label:'Rock Bottom %', data:[-24.3,-23.69,-8.63,-6.81,-6.15,-4.82,-4.52,-3.94,-3.77,-2.72,5.6,6.33,6.65,6.8,7.16,7.7,9.84,10.57],
+      backgroundColor:["#E63946","#E63946","#E63946","#E63946","#E63946","#E63946","#E63946","#E63946","#E63946","#E63946","#F4A261","#F4A261","#F4A261","#F4A261","#F4A261","#F4A261","#2DC653","#2DC653"],
+      borderRadius:4
+    }]
+  },
+  options: {
+    indexAxis:'y', responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{display:false},
+      tooltip:{callbacks:{label:c=>c.parsed.x.toFixed(2)+'%'}},
+      annotation:{annotations:{line1:{type:'line',xMin:8,xMax:8,borderColor:'rgba(45,198,83,0.8)',borderWidth:2,borderDash:[6,4],label:{display:true,content:'8% Target',position:'end'}}}}},
+    scales:{x:{grid,ticks:{callback:v=>v+'%'}},y:{grid:{display:false},ticks:{font:{size:10}}}}
+  }
+});
+
+// Product Mix doughnut
+new Chart(document.getElementById('cProductMix'), {
+  type: 'doughnut',
+  data: {
+    labels: ["Enamel","QD Enamel","Accessories","Sealers","PVA","Roof","Primer"],
+    datasets: [{
+      data: [31,29,13,10,7,6,1],
+      backgroundColor: [O,T,G,B,GD,R,'#7B2D8B'],
+      borderWidth: 2, borderColor:'#fff'
+    }]
+  },
+  options: {
+    responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{position:'bottom',labels:{padding:12,boxWidth:12}},
+      tooltip:{callbacks:{label:c=>c.label+': '+c.parsed+'%'}}}
+  }
+});
+
 </script>
 </body>
 </html>
