@@ -26,11 +26,11 @@ INDEX           = BASE_DIR / "index.html"
 WORKSPACE_DASH  = Path(r"C:\Users\quint\workspace-dashboard")
 MERCH_FILE      = BASE_DIR.parent.parent / "3.Resources" / "16.Sales and Other data" / "Zoho" / "Meetings_Report_AWS_Merchandising.xlsx"
 
-# Training & Merchandising KPI (the 10% bucket): merchandising = 70% (= 7% of total),
-# training = 30% (= 3% of total, currently no data source).
+# KPI E "Merchandising" — the full 10% bucket is now scored on merchandising visits.
+# Training is excluded from scoring until a data source exists.
+# Scoring is GRADED: score = min(visits/target, 1) × 10%.
 MERCH_TARGET_PER_MONTH       = 15        # visits per rep per month
-MERCH_WEIGHT_OF_E            = 7.0       # of the 10% E bucket
-TRAINING_WEIGHT_OF_E         = 3.0       # awaiting data
+MERCH_WEIGHT_OF_E            = 10.0      # full 10% — training portion no longer scored
 NAME_TO_REP_CODE = {"NIKHIL":"NP","BYRON":"BM","ABOO":"AC","AMIT":"AP","BHADRESH":"BV"}
 MONTH_FULL_NAMES = ["January","February","March","April","May","June",
                     "July","August","September","October","November","December"]
@@ -163,8 +163,8 @@ KPI_CATEGORIES = [
      "description": "Min 1 upsell/week (4-5/month) of focus products."},
     {"id": "D", "name": "New Customer Onboarding",    "weight": 10,
      "description": "Min 2 new trading customers onboarded per month."},
-    {"id": "E", "name": "Training & Merchandising",   "weight": 10,
-     "description": "1 training per key account per month + POS branding visible. Hit or Miss."},
+    {"id": "E", "name": "Merchandising",              "weight": 10,
+     "description": "Merchandising visits per rep per month — graded vs 15 visits/month target. Training portion currently not scored."},
 ]
 
 # ── HELPERS ────────────────────────────────────────────────────────────────────
@@ -289,14 +289,18 @@ def build_html() -> str:
         else:
             kpi_a = f'<span class="pill red">✗ {pct_str(yoy)} YOY</span>'
 
-        # KPI E (Training & Merchandising) — merchandising portion now scored from Zoho data
-        merch_count = merch_by_rep.get(r["code"], 0)
-        merch_hit = merch_count >= MERCH_TARGET_PER_MONTH
-        merch_title = f"Merchandising: {merch_count}/{MERCH_TARGET_PER_MONTH} visits in {merch_period} (training portion still pending)"
-        if merch_hit:
-            kpi_e = f'<span class="pill green" title="{merch_title}">✓ {merch_count}/{MERCH_TARGET_PER_MONTH}</span>'
+        # KPI E (Merchandising) — graded score from Zoho meetings export.
+        # Score = min(visits/target, 1) × 10%. Training is no longer scored.
+        merch_count   = merch_by_rep.get(r["code"], 0)
+        merch_pct     = min(merch_count / MERCH_TARGET_PER_MONTH, 1.0) * 100  # achievement %
+        merch_score   = round(min(merch_count / MERCH_TARGET_PER_MONTH, 1.0) * MERCH_WEIGHT_OF_E, 1)
+        merch_title   = f"Merchandising: {merch_count}/{MERCH_TARGET_PER_MONTH} visits in {merch_period} → {merch_pct:.0f}% of target → {merch_score:.1f} of 10 pts"
+        if merch_pct >= 100:
+            kpi_e = f'<span class="pill green" title="{merch_title}">✓ {merch_pct:.0f}% &middot; {merch_count}/{MERCH_TARGET_PER_MONTH}</span>'
+        elif merch_pct >= 50:
+            kpi_e = f'<span class="pill amber" title="{merch_title}">⚠ {merch_pct:.0f}% &middot; {merch_count}/{MERCH_TARGET_PER_MONTH}</span>'
         else:
-            kpi_e = f'<span class="pill red" title="{merch_title}">✗ {merch_count}/{MERCH_TARGET_PER_MONTH}</span>'
+            kpi_e = f'<span class="pill red" title="{merch_title}">✗ {merch_pct:.0f}% &middot; {merch_count}/{MERCH_TARGET_PER_MONTH}</span>'
 
         rep_rows += f"""
           <tr>
@@ -313,34 +317,42 @@ def build_html() -> str:
             <td>{orders}</td>
           </tr>"""
 
-    # KPI Achievement Summary card — per-rep merchandising roll-up
+    # KPI Achievement Summary card — per-rep merchandising roll-up.
+    # Graded scoring: score_earned = min(visits/target, 1) × 10% (full bucket, training excluded).
     merch_rows_html = ""
     team_visits = 0
     team_target = MERCH_TARGET_PER_MONTH * len(REPS)
-    reps_hit = 0
+    team_score_earned = 0.0
     for r in REPS:
         c = merch_by_rep.get(r["code"], 0)
         team_visits += c
-        hit = c >= MERCH_TARGET_PER_MONTH
-        if hit: reps_hit += 1
-        achievement_pct = min(round(c / MERCH_TARGET_PER_MONTH * 100), 999)
-        pill_cls = "green" if hit else ("amber" if c > 0 else "red")
-        pill_lbl = "✓ Hit" if hit else ("⚠ Partial" if c > 0 else "✗ Miss")
-        score_earned = MERCH_WEIGHT_OF_E if hit else 0.0
-        bar_w = min(c / MERCH_TARGET_PER_MONTH * 100, 100)
-        bar_color = "var(--green)" if hit else ("var(--amber)" if c > 0 else "var(--red)")
+        ach_ratio  = min(c / MERCH_TARGET_PER_MONTH, 1.0)
+        ach_pct    = ach_ratio * 100
+        score_earned = round(ach_ratio * MERCH_WEIGHT_OF_E, 1)
+        team_score_earned += score_earned
+        if ach_pct >= 100:
+            pill_cls, pill_lbl = "green", f"✓ {ach_pct:.0f}%"
+            bar_color = "var(--green)"
+        elif ach_pct >= 50:
+            pill_cls, pill_lbl = "amber", f"⚠ {ach_pct:.0f}%"
+            bar_color = "var(--amber)"
+        else:
+            pill_cls, pill_lbl = "red", f"✗ {ach_pct:.0f}%"
+            bar_color = "var(--red)"
         merch_rows_html += f"""
           <tr>
             <td><strong>{r["code"]}</strong> &mdash; {r["name"]}</td>
             <td style="text-align:right;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:18px">{c}</td>
             <td style="text-align:right;color:var(--muted)">{MERCH_TARGET_PER_MONTH}</td>
-            <td style="min-width:120px"><div style="background:#e8e7e2;border-radius:4px;height:8px;overflow:hidden"><div style="width:{bar_w:.0f}%;height:100%;background:{bar_color}"></div></div><div style="font-size:11px;color:var(--muted);margin-top:3px">{achievement_pct}% of target</div></td>
+            <td style="min-width:120px"><div style="background:#e8e7e2;border-radius:4px;height:8px;overflow:hidden"><div style="width:{ach_pct:.0f}%;height:100%;background:{bar_color}"></div></div><div style="font-size:11px;color:var(--muted);margin-top:3px">{ach_pct:.0f}% of target</div></td>
             <td><span class="pill {pill_cls}">{pill_lbl}</span></td>
             <td style="text-align:right;font-family:'Barlow Condensed',sans-serif;font-weight:700">{score_earned:.1f}% / {MERCH_WEIGHT_OF_E:.0f}%</td>
           </tr>"""
     overall_pct = round(team_visits / team_target * 100) if team_target else 0
-    overall_pill = "green" if reps_hit == len(REPS) else ("amber" if reps_hit > 0 else "red")
-    overall_lbl = f"{reps_hit}/{len(REPS)} reps hit"
+    avg_score   = round(team_score_earned / len(REPS), 1) if REPS else 0.0
+    if overall_pct >= 100: overall_pill, overall_lbl = "green", f"✓ Team {overall_pct}%"
+    elif overall_pct >= 50: overall_pill, overall_lbl = "amber", f"⚠ Team {overall_pct}%"
+    else: overall_pill, overall_lbl = "red", f"✗ Team {overall_pct}%"
     fallback_note = (f' &middot; <span style="color:var(--amber)"><strong>Note:</strong> '
                      f'{merch_fallback_from} had no logged visits — showing {merch_period} instead.</span>'
                      ) if merch_fallback_from else ""
@@ -349,7 +361,7 @@ def build_html() -> str:
     <div class="card-title">Merchandising Achievement &mdash; {merch_period}</div>
     <div class="card-sub">
       Source: <em>Meetings_Report_AWS_Merchandising</em> (Zoho export) &middot; target: {MERCH_TARGET_PER_MONTH} visits / rep / month &middot;
-      Hit/Miss per KPI Agreement &middot; merchandising portion = 70% of KPI E (= {MERCH_WEIGHT_OF_E:.0f}% of total){fallback_note}
+      <strong>Graded scoring:</strong> score = min(visits/target, 1) × 10% &middot; full 10% of KPI E (training excluded){fallback_note}
     </div>
     <div class="tw" style="margin-top:14px">
       <table>
@@ -368,16 +380,16 @@ def build_html() -> str:
             <td><strong>TEAM TOTAL</strong></td>
             <td style="text-align:right;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:20px">{team_visits}</td>
             <td style="text-align:right">{team_target}</td>
-            <td><div style="background:#e8e7e2;border-radius:4px;height:8px;overflow:hidden"><div style="width:{min(team_visits/team_target*100,100):.0f}%;height:100%;background:var(--gold)"></div></div><div style="font-size:11px;color:var(--muted);margin-top:3px">{overall_pct}% of team target</div></td>
+            <td><div style="background:#e8e7e2;border-radius:4px;height:8px;overflow:hidden"><div style="width:{min(overall_pct,100):.0f}%;height:100%;background:var(--gold)"></div></div><div style="font-size:11px;color:var(--muted);margin-top:3px">{overall_pct}% of team target</div></td>
             <td><span class="pill {overall_pill}">{overall_lbl}</span></td>
-            <td style="text-align:right;font-family:'Barlow Condensed',sans-serif;font-weight:900">—</td>
+            <td style="text-align:right;font-family:'Barlow Condensed',sans-serif;font-weight:900">avg {avg_score:.1f}% / {MERCH_WEIGHT_OF_E:.0f}%</td>
           </tr>
         </tbody>
       </table>
     </div>
     <p style="margin-top:12px;font-size:11px;color:var(--muted)">
-      Per KPI Agreement, KPI E (10%) = Merchandising 70% + Training 30%.
-      The training portion (3% of total) requires a training register per key account (attendance lists, photos, reports) and is not yet wired in.
+      KPI E is now scored on merchandising visits only — graded against a 15 visits/rep/month target.
+      Training is excluded from scoring until a training register feed exists.
     </p>
   </div>"""
 
@@ -631,14 +643,13 @@ def build_html() -> str:
   <div class="warn-banner">
     <strong>Scoring Status:</strong>
     &nbsp;<span class="pill green" style="font-size:11px">A — Sales Growth</span>
-    <span class="pill green" style="font-size:11px">E — Merchandising (7% of 10%)</span>
+    <span class="pill green" style="font-size:11px">E — Merchandising (10%, graded)</span>
     Scored from QuickSight + Zoho meetings export.
     &nbsp;<span class="pill neutral" style="font-size:11px">B — CRM</span>
     <span class="pill neutral" style="font-size:11px">C — Product Dev</span>
     <span class="pill neutral" style="font-size:11px">D — New Customers</span>
-    <span class="pill neutral" style="font-size:11px">E — Training (3% of 10%)</span>
     Awaiting data exports.
-    <strong>Total scoreable weight this week: 57% of 100%.</strong>
+    <strong>Total scoreable weight this week: 60% of 100%.</strong>
   </div>
   <div class="card full">
     <div class="card-title">Rep KPI Agreement Scorecard</div>
@@ -656,7 +667,7 @@ def build_html() -> str:
             <th>B — CRM Dev (20%)</th>
             <th>C — Product Dev (10%)</th>
             <th>D — New Customers (10%)</th>
-            <th>E — Training (10%)</th>
+            <th>E — Merchandising (10%)</th>
             <th>Approved Orders</th>
           </tr>
         </thead>
@@ -670,7 +681,7 @@ def build_html() -> str:
   </div>
 
   <!-- KPI ACHIEVEMENT SUMMARY (per-rep roll-up) -->
-  <div class="section-title">KPI Achievement Summary — Training &amp; Merchandising</div>
+  <div class="section-title">KPI Achievement Summary — Merchandising (KPI E, 10%)</div>
   {merch_summary_card}
 
   <!-- REP PERFORMANCE CHARTS -->
@@ -823,11 +834,10 @@ def build_html() -> str:
       Minimum 2 per rep per month.</p>
     </div>
     <div class="gap-card">
-      <h4><span class="gap-badge">E</span> Training (3% of 10%)</h4>
-      <p>Need: Training attendance lists, photos, and reports per key account.
-      Also POS / branding compliance photo evidence.
-      Minimum 1 training per key account per month.
-      <br><br><em>Merchandising portion (7%) is now wired up via Meetings_Report_AWS_Merchandising.</em></p>
+      <h4><span class="gap-badge">E</span> Merchandising — fully scored (10%)</h4>
+      <p>Sourced from <em>Meetings_Report_AWS_Merchandising</em> (Zoho).
+      Graded vs 15 visits / rep / month.
+      Training is no longer part of KPI E scoring — re-introduce only once a training register feed exists.</p>
     </div>
     <div class="gap-card">
       <h4><span class="gap-badge">A</span> Collections Audit (50%)</h4>
