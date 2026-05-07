@@ -10,16 +10,30 @@ Run manually or via Windows Task Scheduler whenever new weekly reports arrive.
 
 import os
 import json
+import re
 import subprocess
 import sys
-from datetime import datetime
+from collections import defaultdict
+from datetime import datetime, date
 from pathlib import Path
+
+import pandas as pd
 
 BASE_DIR        = Path(__file__).parent
 WEEKLY_DIR      = BASE_DIR.parent.parent / "1.Projects" / "KPI Report" / "Weekly Progress"
 DASHBOARD       = BASE_DIR / "KPI Dashboard.html"
 INDEX           = BASE_DIR / "index.html"
 WORKSPACE_DASH  = Path(r"C:\Users\quint\workspace-dashboard")
+MERCH_FILE      = BASE_DIR.parent.parent / "3.Resources" / "16.Sales and Other data" / "Zoho" / "Meetings_Report_AWS_Merchandising.xlsx"
+
+# Training & Merchandising KPI (the 10% bucket): merchandising = 70% (= 7% of total),
+# training = 30% (= 3% of total, currently no data source).
+MERCH_TARGET_PER_MONTH       = 15        # visits per rep per month
+MERCH_WEIGHT_OF_E            = 7.0       # of the 10% E bucket
+TRAINING_WEIGHT_OF_E         = 3.0       # awaiting data
+NAME_TO_REP_CODE = {"NIKHIL":"NP","BYRON":"BM","ABOO":"AC","AMIT":"AP","BHADRESH":"BV"}
+MONTH_FULL_NAMES = ["January","February","March","April","May","June",
+                    "July","August","September","October","November","December"]
 
 # ── WEEKLY DATA ───────────────────────────────────────────────────────────────
 # Update this block each week from the QuickSight Weekly Sales Report PDFs.
@@ -184,10 +198,68 @@ def sales_color_class(pct):
     if pct >= -15:   return "amber"
     return "red"
 
+# ── MERCHANDISING DATA (KPI E — 70% of 10%) ───────────────────────────────────
+
+def load_merch_visits_by_month():
+    """Parse Zoho's Meetings_Report_AWS_Merchandising export.
+
+    Rep is buried in the free-text Note Content as
+    'WHO IS THE REP THAT SERVICES THE STORE: <FIRSTNAME>'.
+    Returns dict keyed by (year, month) -> {rep_code: visit_count}.
+    Both PLANNED and VISITED rows count (per KPI agreement).
+    """
+    if not MERCH_FILE.exists():
+        return {}
+    df = pd.read_excel(MERCH_FILE, header=6)
+    rep_re = re.compile(r"WHO IS THE REP[^:]*:\s*\n?\s*([A-Z][A-Z\s]*)", re.IGNORECASE)
+    out = defaultdict(lambda: defaultdict(int))
+    for _, row in df.iterrows():
+        note = str(row.get("Note Content", "") or "")
+        m = rep_re.search(note)
+        if not m:
+            continue
+        first = m.group(1).strip().upper().split()[0]
+        code = NAME_TO_REP_CODE.get(first)
+        if not code:
+            continue
+        dt = row.get("Created Time")
+        if pd.isna(dt):
+            continue
+        if isinstance(dt, str):
+            dt = pd.to_datetime(dt, errors="coerce")
+            if pd.isna(dt):
+                continue
+        out[(dt.year, dt.month)][code] += 1
+    return {k: dict(v) for k, v in out.items()}
+
+
+def get_merch_scoring_window():
+    """Return (period_label, fallback_from, visits_dict).
+
+    Default window = last completed calendar month. If that month has no logged
+    visits across any rep (likely incomplete export), fall back to the most recent
+    month that does have data and surface that fact via fallback_from.
+    """
+    visits = load_merch_visits_by_month()
+    today = date.today()
+    last_y = today.year if today.month > 1 else today.year - 1
+    last_m = today.month - 1 if today.month > 1 else 12
+    target_key = (last_y, last_m)
+    target_label = f"{MONTH_FULL_NAMES[last_m-1]} {last_y}"
+    if visits.get(target_key):
+        return target_label, None, visits[target_key]
+    candidates = sorted([k for k in visits if k <= target_key], reverse=True)
+    if candidates:
+        fk = candidates[0]
+        return f"{MONTH_FULL_NAMES[fk[1]-1]} {fk[0]}", target_label, visits[fk]
+    return target_label, None, {}
+
 # ── HTML BUILD ─────────────────────────────────────────────────────────────────
 
 def build_html() -> str:
     generated = datetime.now().strftime("%d %B %Y %H:%M")
+
+    merch_period, merch_fallback_from, merch_by_rep = get_merch_scoring_window()
 
     # Rep table rows
     rep_rows = ""
@@ -217,6 +289,15 @@ def build_html() -> str:
         else:
             kpi_a = f'<span class="pill red">✗ {pct_str(yoy)} YOY</span>'
 
+        # KPI E (Training & Merchandising) — merchandising portion now scored from Zoho data
+        merch_count = merch_by_rep.get(r["code"], 0)
+        merch_hit = merch_count >= MERCH_TARGET_PER_MONTH
+        merch_title = f"Merchandising: {merch_count}/{MERCH_TARGET_PER_MONTH} visits in {merch_period} (training portion still pending)"
+        if merch_hit:
+            kpi_e = f'<span class="pill green" title="{merch_title}">✓ {merch_count}/{MERCH_TARGET_PER_MONTH}</span>'
+        else:
+            kpi_e = f'<span class="pill red" title="{merch_title}">✗ {merch_count}/{MERCH_TARGET_PER_MONTH}</span>'
+
         rep_rows += f"""
           <tr>
             <td><strong>{r["code"]}</strong><br><small style="color:var(--muted)">{r["name"]}</small></td>
@@ -228,9 +309,77 @@ def build_html() -> str:
             <td><span class="pill neutral" title="CRM data required">⚠ No data</span></td>
             <td><span class="pill neutral" title="Product dev data required">⚠ No data</span></td>
             <td><span class="pill neutral" title="New customer data required">⚠ No data</span></td>
-            <td><span class="pill neutral" title="Training data required">⚠ No data</span></td>
+            <td>{kpi_e}</td>
             <td>{orders}</td>
           </tr>"""
+
+    # KPI Achievement Summary card — per-rep merchandising roll-up
+    merch_rows_html = ""
+    team_visits = 0
+    team_target = MERCH_TARGET_PER_MONTH * len(REPS)
+    reps_hit = 0
+    for r in REPS:
+        c = merch_by_rep.get(r["code"], 0)
+        team_visits += c
+        hit = c >= MERCH_TARGET_PER_MONTH
+        if hit: reps_hit += 1
+        achievement_pct = min(round(c / MERCH_TARGET_PER_MONTH * 100), 999)
+        pill_cls = "green" if hit else ("amber" if c > 0 else "red")
+        pill_lbl = "✓ Hit" if hit else ("⚠ Partial" if c > 0 else "✗ Miss")
+        score_earned = MERCH_WEIGHT_OF_E if hit else 0.0
+        bar_w = min(c / MERCH_TARGET_PER_MONTH * 100, 100)
+        bar_color = "var(--green)" if hit else ("var(--amber)" if c > 0 else "var(--red)")
+        merch_rows_html += f"""
+          <tr>
+            <td><strong>{r["code"]}</strong> &mdash; {r["name"]}</td>
+            <td style="text-align:right;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:18px">{c}</td>
+            <td style="text-align:right;color:var(--muted)">{MERCH_TARGET_PER_MONTH}</td>
+            <td style="min-width:120px"><div style="background:#e8e7e2;border-radius:4px;height:8px;overflow:hidden"><div style="width:{bar_w:.0f}%;height:100%;background:{bar_color}"></div></div><div style="font-size:11px;color:var(--muted);margin-top:3px">{achievement_pct}% of target</div></td>
+            <td><span class="pill {pill_cls}">{pill_lbl}</span></td>
+            <td style="text-align:right;font-family:'Barlow Condensed',sans-serif;font-weight:700">{score_earned:.1f}% / {MERCH_WEIGHT_OF_E:.0f}%</td>
+          </tr>"""
+    overall_pct = round(team_visits / team_target * 100) if team_target else 0
+    overall_pill = "green" if reps_hit == len(REPS) else ("amber" if reps_hit > 0 else "red")
+    overall_lbl = f"{reps_hit}/{len(REPS)} reps hit"
+    fallback_note = (f' &middot; <span style="color:var(--amber)"><strong>Note:</strong> '
+                     f'{merch_fallback_from} had no logged visits — showing {merch_period} instead.</span>'
+                     ) if merch_fallback_from else ""
+    merch_summary_card = f"""
+  <div class="card full">
+    <div class="card-title">Merchandising Achievement &mdash; {merch_period}</div>
+    <div class="card-sub">
+      Source: <em>Meetings_Report_AWS_Merchandising</em> (Zoho export) &middot; target: {MERCH_TARGET_PER_MONTH} visits / rep / month &middot;
+      Hit/Miss per KPI Agreement &middot; merchandising portion = 70% of KPI E (= {MERCH_WEIGHT_OF_E:.0f}% of total){fallback_note}
+    </div>
+    <div class="tw" style="margin-top:14px">
+      <table>
+        <thead>
+          <tr>
+            <th>Rep</th>
+            <th style="text-align:right">Visits</th>
+            <th style="text-align:right">Target</th>
+            <th>Achievement</th>
+            <th>Status</th>
+            <th style="text-align:right">Score Earned</th>
+          </tr>
+        </thead>
+        <tbody>{merch_rows_html}
+          <tr style="background:#f7f6f3;font-weight:700">
+            <td><strong>TEAM TOTAL</strong></td>
+            <td style="text-align:right;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:20px">{team_visits}</td>
+            <td style="text-align:right">{team_target}</td>
+            <td><div style="background:#e8e7e2;border-radius:4px;height:8px;overflow:hidden"><div style="width:{min(team_visits/team_target*100,100):.0f}%;height:100%;background:var(--gold)"></div></div><div style="font-size:11px;color:var(--muted);margin-top:3px">{overall_pct}% of team target</div></td>
+            <td><span class="pill {overall_pill}">{overall_lbl}</span></td>
+            <td style="text-align:right;font-family:'Barlow Condensed',sans-serif;font-weight:900">—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:12px;font-size:11px;color:var(--muted)">
+      Per KPI Agreement, KPI E (10%) = Merchandising 70% + Training 30%.
+      The training portion (3% of total) requires a training register per key account (attendance lists, photos, reports) and is not yet wired in.
+    </p>
+  </div>"""
 
     # YOY chart arrays
     yoy_labels = js_arr(None for _ in [])
@@ -481,13 +630,15 @@ def build_html() -> str:
   <div class="section-title">KPI Compliance Scorecard — Per Rep</div>
   <div class="warn-banner">
     <strong>Scoring Status:</strong>
-    &nbsp;<span class="pill green" style="font-size:11px">A — Sales Growth</span> Scored from QuickSight data.
+    &nbsp;<span class="pill green" style="font-size:11px">A — Sales Growth</span>
+    <span class="pill green" style="font-size:11px">E — Merchandising (7% of 10%)</span>
+    Scored from QuickSight + Zoho meetings export.
     &nbsp;<span class="pill neutral" style="font-size:11px">B — CRM</span>
     <span class="pill neutral" style="font-size:11px">C — Product Dev</span>
     <span class="pill neutral" style="font-size:11px">D — New Customers</span>
-    <span class="pill neutral" style="font-size:11px">E — Training</span>
-    These 4 categories cannot be scored — data not in current report export.
-    <strong>Total scoreable weight this week: 50% of 100%.</strong>
+    <span class="pill neutral" style="font-size:11px">E — Training (3% of 10%)</span>
+    Awaiting data exports.
+    <strong>Total scoreable weight this week: 57% of 100%.</strong>
   </div>
   <div class="card full">
     <div class="card-title">Rep KPI Agreement Scorecard</div>
@@ -517,6 +668,10 @@ def build_html() -> str:
       to qualify for commission. Reps below 10% YOY growth do not qualify for KPI A incentive this period.
     </p>
   </div>
+
+  <!-- KPI ACHIEVEMENT SUMMARY (per-rep roll-up) -->
+  <div class="section-title">KPI Achievement Summary — Training &amp; Merchandising</div>
+  {merch_summary_card}
 
   <!-- REP PERFORMANCE CHARTS -->
   <div class="section-title">Rep Sales Performance — April 2026</div>
@@ -668,10 +823,11 @@ def build_html() -> str:
       Minimum 2 per rep per month.</p>
     </div>
     <div class="gap-card">
-      <h4><span class="gap-badge">E</span> Training &amp; Merchandising (10%)</h4>
+      <h4><span class="gap-badge">E</span> Training (3% of 10%)</h4>
       <p>Need: Training attendance lists, photos, and reports per key account.
       Also POS / branding compliance photo evidence.
-      Minimum 1 training per key account per month.</p>
+      Minimum 1 training per key account per month.
+      <br><br><em>Merchandising portion (7%) is now wired up via Meetings_Report_AWS_Merchandising.</em></p>
     </div>
     <div class="gap-card">
       <h4><span class="gap-badge">A</span> Collections Audit (50%)</h4>
