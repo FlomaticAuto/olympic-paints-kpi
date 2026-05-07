@@ -929,14 +929,33 @@ def write_kpi_status(generated: str):
 
 # ── GIT PUSH ──────────────────────────────────────────────────────────────────
 
+def _flomatic_token():
+    """Retrieve the FlomaticAuto PAT from the GitHub CLI keyring."""
+    try:
+        r = subprocess.run(
+            ["gh", "auth", "token", "--user", "FlomaticAuto"],
+            capture_output=True, text=True, shell=True,
+        )
+        token = r.stdout.strip()
+        if r.returncode == 0 and token.startswith("gho_"):
+            return token
+    except Exception as e:
+        print(f"  [WARN] could not get FlomaticAuto token: {e}")
+    return None
+
+
 def git_push(path: Path):
     cwd = str(path)
     msg = f"Weekly KPI Dashboard update — {REPORT_WEEK} — {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+    token = _flomatic_token()
 
     def run(cmd):
         r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
         if r.returncode != 0:
-            print(f"  [WARN] {' '.join(cmd)}: {r.stderr.strip()}")
+            err = r.stderr.strip()
+            if token:
+                err = err.replace(token, "***")
+            print(f"  [WARN] {' '.join(cmd)}: {err}")
         return r.returncode == 0
 
     run(["git", "config", "user.email", "auto@olympic-paints.local"])
@@ -945,8 +964,15 @@ def git_push(path: Path):
     run(["git", "add", "KPI Dashboard.html"])
     run(["git", "add", "build_kpi_dashboard.py"])
     run(["git", "commit", "-m", msg])
-    ok = run(["git", "push", "origin", "master"])
-    if not ok:
+
+    push_cmd = ["git", "push", "origin", "master"]
+    if token:
+        # Push to the authed URL once without persisting it in the remote config
+        authed = f"https://FlomaticAuto:{token}@github.com/FlomaticAuto/olympic-paints-kpi.git"
+        push_cmd = ["git", "push", authed, "master"]
+
+    ok = run(push_cmd)
+    if not ok and not token:
         run(["git", "push", "-u", "origin", "master"])
     if ok:
         print(f"  ✓ Pushed to GitHub")
