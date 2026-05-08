@@ -27,11 +27,11 @@ WORKSPACE_DASH  = Path(r"C:\Users\quint\workspace-dashboard")
 MERCH_FILE      = BASE_DIR.parent.parent / "3.Resources" / "16.Sales and Other data" / "Zoho" / "Meetings_Report_AWS_Merchandising.xlsx"
 LEADS_FILE      = BASE_DIR.parent.parent / "3.Resources" / "16.Sales and Other data" / "Zoho" / "OP_Lead_Tracking_new.csv"
 
-# KPI E "Merchandising" — the full 10% bucket is now scored on merchandising visits.
+# KPI F "Merchandising" — the full 10% bucket is now scored on merchandising visits.
 # Training is excluded from scoring until a data source exists.
 # Scoring is GRADED: score = min(visits/target, 1) × 10%.
 MERCH_TARGET_PER_MONTH       = 15        # visits per rep per month
-MERCH_WEIGHT_OF_E            = 10.0      # full 10% — training portion no longer scored
+MERCH_WEIGHT_OF_F            = 10.0      # full 10% — training portion no longer scored
 NAME_TO_REP_CODE = {"NIKHIL":"NP","BYRON":"BM","ABOO":"AC","AMIT":"AP","BHADRESH":"BV"}
 LEAD_OWNER_TO_CODE = {
     "aboo cassim": "AC", "amit patel": "AP", "bhadresh vallabh": "BV",
@@ -159,19 +159,25 @@ ECOM_AGING = {
     "15+ days":   22,
 }  # approximate from the data (19 orders at 19 days, multiple at 15+, etc.)
 
-# ── KPI Agreement Categories ──────────────────────────────────────────────────
+# ── KPI Agreement Categories (6-category framework) ───────────────────────────
 KPI_CATEGORIES = [
-    {"id": "A", "name": "Sales Growth & Collections", "weight": 50,
-     "description": "Must exceed 10% growth vs prior-year baseline. Settled invoices only."},
-    {"id": "B", "name": "Customer Development & CRM", "weight": 20,
-     "description": "Min 5 new/reactivated customers in CRM per month. Hit or Miss."},
-    {"id": "C", "name": "Product Development",        "weight": 10,
+    {"id": "A", "name": "Sales Growth & Collections", "weight": 30,
+     "description": "Must exceed 10% YoY growth. Commission on sales above prior × 1.10."},
+    {"id": "B", "name": "Discount Management",        "weight": 20,
+     "description": "Average markup above Rock Bottom — banded: ≥15%=20pts, ≥14%=16, ≥13%=12, ≥12%=8, ≥11%=4, below=0."},
+    {"id": "C", "name": "Customer Development & CRM", "weight": 20,
+     "description": "Min 5 new leads created in CRM per month (15/quarter). Hit or Miss."},
+    {"id": "D", "name": "Product Development",        "weight": 10,
      "description": "Min 1 upsell/week (4-5/month) of focus products."},
-    {"id": "D", "name": "New Customer Onboarding",    "weight": 10,
-     "description": "Min 2 new trading customers onboarded per month."},
-    {"id": "E", "name": "Merchandising",              "weight": 10,
-     "description": "Merchandising visits per rep per month — graded vs 15 visits/month target. Training portion currently not scored."},
+    {"id": "E", "name": "New Customer Onboarding",    "weight": 10,
+     "description": "Min 2 new verified trading customers per month (6/quarter full, 3/quarter half)."},
+    {"id": "F", "name": "Merchandising",              "weight": 10,
+     "description": "Merchandising visits — graded vs 15 visits/rep/month (45/quarter). Training excluded until data feed exists."},
 ]
+
+# ── Discount Management banding (KPI B) ───────────────────────────────────────
+# (markup_pct_threshold, points_awarded) — same as rep/sales dashboards
+RB_BANDS = [(15, 20), (14, 16), (13, 12), (12, 8), (11, 4)]
 
 # ── HELPERS ────────────────────────────────────────────────────────────────────
 
@@ -204,8 +210,25 @@ def sales_color_class(pct):
     if pct >= -15:   return "amber"
     return "red"
 
-def _kpi_b_pill(count, period):
-    title = f"Customer Dev / CRM: {count} leads created in {period} (target ≥{KPI_B_TARGET})"
+def _kpi_b_discount_pill(rb_pct):
+    """KPI B — Discount Management: banded markup above Rock Bottom."""
+    if rb_pct is None:
+        return '<span class="pill neutral" title="Discount Management: per-rep rock bottom % not available">⚠ No data</span>'
+    score = 0
+    for thr, pts in RB_BANDS:
+        if rb_pct >= thr:
+            score = pts; break
+    if score == 20:
+        cls, icon = "green", "✓"
+    elif score > 0:
+        cls, icon = "amber", "⚠"
+    else:
+        cls, icon = "red", "✗"
+    title = f"Discount Mgmt: +{rb_pct:.1f}% avg above RB → {score}/20 pts (target ≥11%)"
+    return f'<span class="pill {cls}" title="{title}">{icon} +{rb_pct:.1f}% &middot; {score}/20</span>'
+
+def _kpi_c_pill(count, period):
+    title = f"Customer Dev / CRM: {count} leads created in {period} (target ≥{KPI_B_TARGET}/month)"
     if count >= KPI_B_TARGET:
         return f'<span class="pill green" title="{title}">✓ Hit &middot; {count} leads</span>'
     if count > 0:
@@ -357,18 +380,18 @@ def build_html() -> str:
         else:
             kpi_a = f'<span class="pill red">✗ {pct_str(yoy)} YOY</span>'
 
-        # KPI E (Merchandising) — graded score from Zoho meetings export.
+        # KPI F (Merchandising) — graded score from Zoho meetings export.
         # Score = min(visits/target, 1) × 10%. Training is no longer scored.
         merch_count   = merch_by_rep.get(r["code"], 0)
         merch_pct     = min(merch_count / MERCH_TARGET_PER_MONTH, 1.0) * 100  # achievement %
-        merch_score   = round(min(merch_count / MERCH_TARGET_PER_MONTH, 1.0) * MERCH_WEIGHT_OF_E, 1)
+        merch_score   = round(min(merch_count / MERCH_TARGET_PER_MONTH, 1.0) * MERCH_WEIGHT_OF_F, 1)
         merch_title   = f"Merchandising: {merch_count}/{MERCH_TARGET_PER_MONTH} visits in {merch_period} → {merch_pct:.0f}% of target → {merch_score:.1f} of 10 pts"
         if merch_pct >= 100:
-            kpi_e = f'<span class="pill green" title="{merch_title}">✓ {merch_pct:.0f}% &middot; {merch_count}/{MERCH_TARGET_PER_MONTH}</span>'
+            kpi_f = f'<span class="pill green" title="{merch_title}">✓ {merch_pct:.0f}% &middot; {merch_count}/{MERCH_TARGET_PER_MONTH}</span>'
         elif merch_pct >= 50:
-            kpi_e = f'<span class="pill amber" title="{merch_title}">⚠ {merch_pct:.0f}% &middot; {merch_count}/{MERCH_TARGET_PER_MONTH}</span>'
+            kpi_f = f'<span class="pill amber" title="{merch_title}">⚠ {merch_pct:.0f}% &middot; {merch_count}/{MERCH_TARGET_PER_MONTH}</span>'
         else:
-            kpi_e = f'<span class="pill red" title="{merch_title}">✗ {merch_pct:.0f}% &middot; {merch_count}/{MERCH_TARGET_PER_MONTH}</span>'
+            kpi_f = f'<span class="pill red" title="{merch_title}">✗ {merch_pct:.0f}% &middot; {merch_count}/{MERCH_TARGET_PER_MONTH}</span>'
 
         rep_rows += f"""
           <tr>
@@ -378,10 +401,11 @@ def build_html() -> str:
             <td>{pct_bar}</td>
             <td>{rb_cell}</td>
             <td>{kpi_a}</td>
-            <td>{_kpi_b_pill(leads_by_rep.get(r["code"], 0), leads_period)}</td>
+            <td>{_kpi_b_discount_pill(r["rb_pct"])}</td>
+            <td>{_kpi_c_pill(leads_by_rep.get(r["code"], 0), leads_period)}</td>
             <td><span class="pill neutral" title="Product dev data required">⚠ No data</span></td>
             <td><span class="pill neutral" title="New customer data required">⚠ No data</span></td>
-            <td>{kpi_e}</td>
+            <td>{kpi_f}</td>
             <td>{orders}</td>
           </tr>"""
 
@@ -396,7 +420,7 @@ def build_html() -> str:
         team_visits += c
         ach_ratio  = min(c / MERCH_TARGET_PER_MONTH, 1.0)
         ach_pct    = ach_ratio * 100
-        score_earned = round(ach_ratio * MERCH_WEIGHT_OF_E, 1)
+        score_earned = round(ach_ratio * MERCH_WEIGHT_OF_F, 1)
         team_score_earned += score_earned
         if ach_pct >= 100:
             pill_cls, pill_lbl = "green", f"✓ {ach_pct:.0f}%"
@@ -414,7 +438,7 @@ def build_html() -> str:
             <td style="text-align:right;color:var(--muted)">{MERCH_TARGET_PER_MONTH}</td>
             <td style="min-width:120px"><div style="background:#e8e7e2;border-radius:4px;height:8px;overflow:hidden"><div style="width:{ach_pct:.0f}%;height:100%;background:{bar_color}"></div></div><div style="font-size:11px;color:var(--muted);margin-top:3px">{ach_pct:.0f}% of target</div></td>
             <td><span class="pill {pill_cls}">{pill_lbl}</span></td>
-            <td style="text-align:right;font-family:'Barlow Condensed',sans-serif;font-weight:700">{score_earned:.1f}% / {MERCH_WEIGHT_OF_E:.0f}%</td>
+            <td style="text-align:right;font-family:'Barlow Condensed',sans-serif;font-weight:700">{score_earned:.1f}% / {MERCH_WEIGHT_OF_F:.0f}%</td>
           </tr>"""
     overall_pct = round(team_visits / team_target * 100) if team_target else 0
     avg_score   = round(team_score_earned / len(REPS), 1) if REPS else 0.0
@@ -429,7 +453,7 @@ def build_html() -> str:
     <div class="card-title">Merchandising Achievement &mdash; {merch_period}</div>
     <div class="card-sub">
       Source: <em>Meetings_Report_AWS_Merchandising</em> (Zoho export) &middot; target: {MERCH_TARGET_PER_MONTH} visits / rep / month &middot;
-      <strong>Graded scoring:</strong> score = min(visits/target, 1) × 10% &middot; full 10% of KPI E (training excluded){fallback_note}
+      <strong>Graded scoring:</strong> score = min(visits/target, 1) × 10% &middot; full 10% of KPI F (training excluded){fallback_note}
     </div>
     <div class="tw" style="margin-top:14px">
       <table>
@@ -450,7 +474,7 @@ def build_html() -> str:
             <td style="text-align:right">{team_target}</td>
             <td><div style="background:#e8e7e2;border-radius:4px;height:8px;overflow:hidden"><div style="width:{min(overall_pct,100):.0f}%;height:100%;background:var(--gold)"></div></div><div style="font-size:11px;color:var(--muted);margin-top:3px">{overall_pct}% of team target</div></td>
             <td><span class="pill {overall_pill}">{overall_lbl}</span></td>
-            <td style="text-align:right;font-family:'Barlow Condensed',sans-serif;font-weight:900">avg {avg_score:.1f}% / {MERCH_WEIGHT_OF_E:.0f}%</td>
+            <td style="text-align:right;font-family:'Barlow Condensed',sans-serif;font-weight:900">avg {avg_score:.1f}% / {MERCH_WEIGHT_OF_F:.0f}%</td>
           </tr>
         </tbody>
       </table>
@@ -646,11 +670,12 @@ def build_html() -> str:
 
   <!-- ALERT BANNER -->
   <div class="warn-banner" style="margin-top:24px">
-    <strong>⚠ Partial KPI Scoring — Action Required</strong><br>
-    This report can only score <strong>KPI A (Sales Growth)</strong> from current data.
-    KPIs B, C, D &amp; E require CRM exports, store visit logs, and training records
-    which are <strong>not yet included in the automated weekly report</strong>.
-    See the <a href="#data-gaps" style="color:var(--orange)">Data Gaps section</a> for what is needed.
+    <strong>⚠ Partial KPI Scoring</strong><br>
+    KPIs A, C and F are scored from live data (QuickSight + Zoho exports).
+    KPI B (Discount Mgmt) is partial — RB% available for AP and NP only.
+    KPIs D and E require CRM upsell and new-store records which are
+    <strong>not yet in the automated feed</strong>.
+    See the <a href="#data-gaps" style="color:var(--orange)">Data Gaps section</a> for details.
   </div>
 
   <!-- EXECUTIVE SUMMARY -->
@@ -710,18 +735,20 @@ def build_html() -> str:
   <div class="section-title">KPI Compliance Scorecard — Per Rep</div>
   <div class="warn-banner">
     <strong>Scoring Status:</strong>
-    &nbsp;<span class="pill green" style="font-size:11px">A — Sales Growth</span>
-    <span class="pill green" style="font-size:11px">E — Merchandising (10%, graded)</span>
-    Scored from QuickSight + Zoho meetings export.
-    &nbsp;<span class="pill neutral" style="font-size:11px">B — CRM</span>
-    <span class="pill neutral" style="font-size:11px">C — Product Dev</span>
-    <span class="pill neutral" style="font-size:11px">D — New Customers</span>
+    &nbsp;<span class="pill green" style="font-size:11px">A — Sales Growth (30%)</span>
+    <span class="pill green" style="font-size:11px">C — Customer Dev/CRM (20%)</span>
+    <span class="pill green" style="font-size:11px">F — Merchandising (10%)</span>
+    Scored from QuickSight + Zoho exports.
+    &nbsp;<span class="pill amber" style="font-size:11px">B — Discount Mgmt (20%, partial)</span>
+    RB % available for some reps only.
+    &nbsp;<span class="pill neutral" style="font-size:11px">D — Product Dev (10%)</span>
+    <span class="pill neutral" style="font-size:11px">E — New Customers (10%)</span>
     Awaiting data exports.
-    <strong>Total scoreable weight this week: 60% of 100%.</strong>
+    <strong>Total scoreable weight this week: 60–80% of 100%.</strong>
   </div>
   <div class="card full">
     <div class="card-title">Rep KPI Agreement Scorecard</div>
-    <div class="card-sub">Based on Sales Rep KPI Agreement 2025 — 5 weighted categories</div>
+    <div class="card-sub">Sales Reps Incentive &amp; KPI Framework — 6 weighted categories</div>
     <div class="tw">
       <table>
         <thead>
@@ -731,11 +758,12 @@ def build_html() -> str:
             <th>Monthly Target</th>
             <th>vs Target</th>
             <th>Rock Bottom %</th>
-            <th>A — Sales Growth (50%)</th>
-            <th>B — CRM Dev (20%)</th>
-            <th>C — Product Dev (10%)</th>
-            <th>D — New Customers (10%)</th>
-            <th>E — Merchandising (10%)</th>
+            <th>A — Sales Growth (30%)</th>
+            <th>B — Discount Mgmt (20%)</th>
+            <th>C — Customer Dev (20%)</th>
+            <th>D — Product Dev (10%)</th>
+            <th>E — New Customers (10%)</th>
+            <th>F — Merchandising (10%)</th>
             <th>Approved Orders</th>
           </tr>
         </thead>
@@ -749,7 +777,7 @@ def build_html() -> str:
   </div>
 
   <!-- KPI ACHIEVEMENT SUMMARY (per-rep roll-up) -->
-  <div class="section-title">KPI Achievement Summary — Merchandising (KPI E, 10%)</div>
+  <div class="section-title">KPI Achievement Summary — Merchandising (KPI F, 10%)</div>
   {merch_summary_card}
 
   <!-- REP PERFORMANCE CHARTS -->
@@ -885,51 +913,40 @@ def build_html() -> str:
   <div class="section-title" id="data-gaps">Data Gaps — What Is Needed to Complete KPI Scoring</div>
   <div class="data-gap-grid">
     <div class="gap-card">
-      <h4><span class="gap-badge">B</span> CRM &amp; Customer Development (20%)</h4>
-      <p>Need: Monthly CRM export showing new and reactivated customers logged per rep.
-      Minimum 5 per rep per month for full score. Currently showing "No data" in QuickSight report.</p>
+      <h4><span class="gap-badge">B</span> Discount Management — partial data (20%)</h4>
+      <p>Rock bottom % available for AP (8.85%) and NP (8.82%) only. Target ≥15% for full 20 pts.
+      Full per-rep markup vs RB required for AC, BV, BM.
+      Currently all reps scoring below the 11% minimum band.</p>
     </div>
     <div class="gap-card">
-      <h4><span class="gap-badge">C</span> Product Development Upsells (10%)</h4>
+      <h4><span class="gap-badge">C</span> Customer Dev &amp; CRM — fully scored (20%)</h4>
+      <p>Sourced from <em>OP_Lead_Tracking_new.csv</em> (Zoho CRM leads export).
+      Scored monthly: ≥5 leads = Hit (green), &lt;5 = Miss (red).
+      Showing {leads_period} data.</p>
+    </div>
+    <div class="gap-card">
+      <h4><span class="gap-badge">D</span> Product Development Upsells (10%)</h4>
       <p>Need: CRM records of upsell activities — product, customer, date, evidence photo.
       Focus products defined quarterly (e.g. Natural Elegance, 7-in-1 PVA, Fibre Restore).
       Minimum 4–5 per rep per month.</p>
     </div>
     <div class="gap-card">
-      <h4><span class="gap-badge">D</span> New Customer Onboarding (10%)</h4>
-      <p>Need: List of new trading customers onboarded this month per rep —
+      <h4><span class="gap-badge">E</span> New Customer Onboarding (10%)</h4>
+      <p>Need: List of new verified trading customers onboarded per rep per quarter —
       credit application completed, first invoice issued, CRM logged.
-      Minimum 2 per rep per month.</p>
+      Quarterly target: 6 = full credit, 3 = half credit.</p>
     </div>
     <div class="gap-card">
-      <h4><span class="gap-badge">E</span> Merchandising — fully scored (10%)</h4>
+      <h4><span class="gap-badge">F</span> Merchandising — fully scored (10%)</h4>
       <p>Sourced from <em>Meetings_Report_AWS_Merchandising</em> (Zoho).
-      Graded vs 15 visits / rep / month.
-      Training is no longer part of KPI E scoring — re-introduce only once a training register feed exists.</p>
+      Graded vs 15 visits / rep / month (45 / quarter).
+      Training is no longer part of KPI F scoring — re-introduce only once a training register feed exists.</p>
     </div>
     <div class="gap-card">
-      <h4><span class="gap-badge">A</span> Collections Audit (50%)</h4>
+      <h4><span class="gap-badge">A</span> Collections Audit (30%)</h4>
       <p>Need: Per-rep collections rate — which invoices have been settled within 30–60 days.
       Only settled invoices qualify for KPI A commission.
       Current data shows sales only, not settlement status.</p>
-    </div>
-    <div class="gap-card">
-      <h4><span class="gap-badge">+</span> Store Visit Counts</h4>
-      <p>QuickSight shows "No data" for store visits per sales manager.
-      This data may exist in Zoho CRM. A weekly export of visit logs per rep
-      is required to score visit frequency against call cycle targets.</p>
-    </div>
-    <div class="gap-card">
-      <h4><span class="gap-badge">+</span> Leads Created</h4>
-      <p>QuickSight shows "No data" for leads created per rep.
-      Required to measure pipeline development and new store identification
-      per the KPI framework and new store qualification SOP.</p>
-    </div>
-    <div class="gap-card">
-      <h4><span class="gap-badge">+</span> Rock Bottom per Rep</h4>
-      <p>Rock bottom % is available for some reps (AP: 8.85%, NP: 8.82%) but not all.
-      A full per-rep rock bottom % is needed to assess margin discipline per rep,
-      not just at product group level.</p>
     </div>
   </div>
 
@@ -939,7 +956,7 @@ def build_html() -> str:
   <strong>Olympic Paints</strong> · Weekly KPI Dashboard · Week ending {REPORT_WEEK}<br>
   Data sourced from Amazon QuickSight Weekly Sales Reports (Weekly Progress folder).<br>
   KPI scoring requires additional CRM and activity data not yet available in automated export.<br>
-  Based on: Sales Rep KPI Agreement 2025/01 — 5 weighted categories (Sales Growth 50% | CRM 20% | Product Dev 10% | New Customers 10% | Training 10%)<br>
+  Based on: Sales Reps Incentive &amp; KPI Framework — 6 categories (Sales Growth 30% | Discount Mgmt 20% | Customer Dev 20% | Product Dev 10% | New Customers 10% | Merchandising 10%)<br>
   Generated {generated}
 </footer>
 

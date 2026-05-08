@@ -111,7 +111,7 @@
   </div>
   <div class="header-right">
     <div class="header-week">Week ending 1 May 2026</div>
-    <div class="header-gen">Generated 08 May 2026 13:46</div>
+    <div class="header-gen">Generated 08 May 2026 14:13</div>
   </div>
 </div>
 
@@ -119,11 +119,12 @@
 
   <!-- ALERT BANNER -->
   <div class="warn-banner" style="margin-top:24px">
-    <strong>⚠ Partial KPI Scoring — Action Required</strong><br>
-    This report can only score <strong>KPI A (Sales Growth)</strong> from current data.
-    KPIs B, C, D &amp; E require CRM exports, store visit logs, and training records
-    which are <strong>not yet included in the automated weekly report</strong>.
-    See the <a href="#data-gaps" style="color:var(--orange)">Data Gaps section</a> for what is needed.
+    <strong>⚠ Partial KPI Scoring</strong><br>
+    KPIs A, C and F are scored from live data (QuickSight + Zoho exports).
+    KPI B (Discount Mgmt) is partial — RB% available for AP and NP only.
+    KPIs D and E require CRM upsell and new-store records which are
+    <strong>not yet in the automated feed</strong>.
+    See the <a href="#data-gaps" style="color:var(--orange)">Data Gaps section</a> for details.
   </div>
 
   <!-- EXECUTIVE SUMMARY -->
@@ -183,18 +184,20 @@
   <div class="section-title">KPI Compliance Scorecard — Per Rep</div>
   <div class="warn-banner">
     <strong>Scoring Status:</strong>
-    &nbsp;<span class="pill green" style="font-size:11px">A — Sales Growth</span>
-    <span class="pill green" style="font-size:11px">E — Merchandising (10%, graded)</span>
-    Scored from QuickSight + Zoho meetings export.
-    &nbsp;<span class="pill neutral" style="font-size:11px">B — CRM</span>
-    <span class="pill neutral" style="font-size:11px">C — Product Dev</span>
-    <span class="pill neutral" style="font-size:11px">D — New Customers</span>
+    &nbsp;<span class="pill green" style="font-size:11px">A — Sales Growth (30%)</span>
+    <span class="pill green" style="font-size:11px">C — Customer Dev/CRM (20%)</span>
+    <span class="pill green" style="font-size:11px">F — Merchandising (10%)</span>
+    Scored from QuickSight + Zoho exports.
+    &nbsp;<span class="pill amber" style="font-size:11px">B — Discount Mgmt (20%, partial)</span>
+    RB % available for some reps only.
+    &nbsp;<span class="pill neutral" style="font-size:11px">D — Product Dev (10%)</span>
+    <span class="pill neutral" style="font-size:11px">E — New Customers (10%)</span>
     Awaiting data exports.
-    <strong>Total scoreable weight this week: 60% of 100%.</strong>
+    <strong>Total scoreable weight this week: 60–80% of 100%.</strong>
   </div>
   <div class="card full">
     <div class="card-title">Rep KPI Agreement Scorecard</div>
-    <div class="card-sub">Based on Sales Rep KPI Agreement 2025 — 5 weighted categories</div>
+    <div class="card-sub">Sales Reps Incentive &amp; KPI Framework — 6 weighted categories</div>
     <div class="tw">
       <table>
         <thead>
@@ -204,11 +207,12 @@
             <th>Monthly Target</th>
             <th>vs Target</th>
             <th>Rock Bottom %</th>
-            <th>A — Sales Growth (50%)</th>
-            <th>B — CRM Dev (20%)</th>
-            <th>C — Product Dev (10%)</th>
-            <th>D — New Customers (10%)</th>
-            <th>E — Merchandising (10%)</th>
+            <th>A — Sales Growth (30%)</th>
+            <th>B — Discount Mgmt (20%)</th>
+            <th>C — Customer Dev (20%)</th>
+            <th>D — Product Dev (10%)</th>
+            <th>E — New Customers (10%)</th>
+            <th>F — Merchandising (10%)</th>
             <th>Approved Orders</th>
           </tr>
         </thead>
@@ -220,7 +224,8 @@
             <td><span class="pill green">+28.7%</span></td>
             <td><span class="pill neutral">No data</span></td>
             <td><span class="pill neutral">—</span></td>
-            <td><span class="pill red" title="Customer Dev / CRM: 1 leads created in April 2026 (target ≥5)">✗ Miss &middot; 1/5</span></td>
+            <td><span class="pill neutral" title="Discount Management: per-rep rock bottom % not available">⚠ No data</span></td>
+            <td><span class="pill red" title="Customer Dev / CRM: 1 leads created in April 2026 (target ≥5/month)">✗ Miss &middot; 1/5</span></td>
             <td><span class="pill neutral" title="Product dev data required">⚠ No data</span></td>
             <td><span class="pill neutral" title="New customer data required">⚠ No data</span></td>
             <td><span class="pill red" title="Merchandising: 5/15 visits in March 2026 → 33% of target → 3.3 of 10 pts">✗ 33% &middot; 5/15</span></td>
@@ -233,7 +238,8 @@
             <td><span class="pill green">+20.7%</span></td>
             <td><span class="pill green">8.8%</span></td>
             <td><span class="pill neutral">—</span></td>
-            <td><span class="pill red" title="Customer Dev / CRM: 0 leads created in April 2026 (target ≥5)">✗ Miss &middot; 0 leads</span></td>
+            <td><span class="pill red" title="Discount Mgmt: +8.8% avg above RB → 0/20 pts (target ≥11%)">✗ +8.8% &middot; 0/20</span></td>
+            <td><span class="pill red" title="Customer Dev / CRM: 0 leads created in April 2026 (target ≥5/month)">✗ Miss &middot; 0 leads</span></td>
             <td><span class="pill neutral" title="Product dev data required">⚠ No data</span></td>
             <td><span class="pill neutral" title="New customer data required">⚠ No data</span></td>
             <td><span class="pill red" title="Merchandising: 1/15 visits in March 2026 → 7% of target → 0.7 of 10 pts">✗ 7% &middot; 1/15</span></td>
@@ -246,7 +252,8 @@
             <td><span class="pill red">-16.3%</span></td>
             <td><span class="pill neutral">No data</span></td>
             <td><span class="pill neutral">—</span></td>
-            <td><span class="pill red" title="Customer Dev / CRM: 0 leads created in April 2026 (target ≥5)">✗ Miss &middot; 0 leads</span></td>
+            <td><span class="pill neutral" title="Discount Management: per-rep rock bottom % not available">⚠ No data</span></td>
+            <td><span class="pill red" title="Customer Dev / CRM: 0 leads created in April 2026 (target ≥5/month)">✗ Miss &middot; 0 leads</span></td>
             <td><span class="pill neutral" title="Product dev data required">⚠ No data</span></td>
             <td><span class="pill neutral" title="New customer data required">⚠ No data</span></td>
             <td><span class="pill red" title="Merchandising: 0/15 visits in March 2026 → 0% of target → 0.0 of 10 pts">✗ 0% &middot; 0/15</span></td>
@@ -259,7 +266,8 @@
             <td><span class="pill amber">-4.3%</span></td>
             <td><span class="pill green">8.8%</span></td>
             <td><span class="pill neutral">—</span></td>
-            <td><span class="pill red" title="Customer Dev / CRM: 0 leads created in April 2026 (target ≥5)">✗ Miss &middot; 0 leads</span></td>
+            <td><span class="pill red" title="Discount Mgmt: +8.8% avg above RB → 0/20 pts (target ≥11%)">✗ +8.8% &middot; 0/20</span></td>
+            <td><span class="pill red" title="Customer Dev / CRM: 0 leads created in April 2026 (target ≥5/month)">✗ Miss &middot; 0 leads</span></td>
             <td><span class="pill neutral" title="Product dev data required">⚠ No data</span></td>
             <td><span class="pill neutral" title="New customer data required">⚠ No data</span></td>
             <td><span class="pill red" title="Merchandising: 6/15 visits in March 2026 → 40% of target → 4.0 of 10 pts">✗ 40% &middot; 6/15</span></td>
@@ -272,7 +280,8 @@
             <td><span class="pill neutral">Internal</span></td>
             <td><span class="pill neutral">No data</span></td>
             <td><span class="pill neutral">—</span></td>
-            <td><span class="pill green" title="Customer Dev / CRM: 5 leads created in April 2026 (target ≥5)">✓ Hit &middot; 5 leads</span></td>
+            <td><span class="pill neutral" title="Discount Management: per-rep rock bottom % not available">⚠ No data</span></td>
+            <td><span class="pill green" title="Customer Dev / CRM: 5 leads created in April 2026 (target ≥5/month)">✓ Hit &middot; 5 leads</span></td>
             <td><span class="pill neutral" title="Product dev data required">⚠ No data</span></td>
             <td><span class="pill neutral" title="New customer data required">⚠ No data</span></td>
             <td><span class="pill red" title="Merchandising: 1/15 visits in March 2026 → 7% of target → 0.7 of 10 pts">✗ 7% &middot; 1/15</span></td>
@@ -287,13 +296,13 @@
   </div>
 
   <!-- KPI ACHIEVEMENT SUMMARY (per-rep roll-up) -->
-  <div class="section-title">KPI Achievement Summary — Merchandising (KPI E, 10%)</div>
+  <div class="section-title">KPI Achievement Summary — Merchandising (KPI F, 10%)</div>
   
   <div class="card full">
     <div class="card-title">Merchandising Achievement &mdash; March 2026</div>
     <div class="card-sub">
       Source: <em>Meetings_Report_AWS_Merchandising</em> (Zoho export) &middot; target: 15 visits / rep / month &middot;
-      <strong>Graded scoring:</strong> score = min(visits/target, 1) × 10% &middot; full 10% of KPI E (training excluded) &middot; <span style="color:var(--amber)"><strong>Note:</strong> April 2026 had no logged visits — showing March 2026 instead.</span>
+      <strong>Graded scoring:</strong> score = min(visits/target, 1) × 10% &middot; full 10% of KPI F (training excluded) &middot; <span style="color:var(--amber)"><strong>Note:</strong> April 2026 had no logged visits — showing March 2026 instead.</span>
     </div>
     <div class="tw" style="margin-top:14px">
       <table>
@@ -582,51 +591,40 @@
   <div class="section-title" id="data-gaps">Data Gaps — What Is Needed to Complete KPI Scoring</div>
   <div class="data-gap-grid">
     <div class="gap-card">
-      <h4><span class="gap-badge">B</span> CRM &amp; Customer Development (20%)</h4>
-      <p>Need: Monthly CRM export showing new and reactivated customers logged per rep.
-      Minimum 5 per rep per month for full score. Currently showing "No data" in QuickSight report.</p>
+      <h4><span class="gap-badge">B</span> Discount Management — partial data (20%)</h4>
+      <p>Rock bottom % available for AP (8.85%) and NP (8.82%) only. Target ≥15% for full 20 pts.
+      Full per-rep markup vs RB required for AC, BV, BM.
+      Currently all reps scoring below the 11% minimum band.</p>
     </div>
     <div class="gap-card">
-      <h4><span class="gap-badge">C</span> Product Development Upsells (10%)</h4>
+      <h4><span class="gap-badge">C</span> Customer Dev &amp; CRM — fully scored (20%)</h4>
+      <p>Sourced from <em>OP_Lead_Tracking_new.csv</em> (Zoho CRM leads export).
+      Scored monthly: ≥5 leads = Hit (green), &lt;5 = Miss (red).
+      Showing April 2026 data.</p>
+    </div>
+    <div class="gap-card">
+      <h4><span class="gap-badge">D</span> Product Development Upsells (10%)</h4>
       <p>Need: CRM records of upsell activities — product, customer, date, evidence photo.
       Focus products defined quarterly (e.g. Natural Elegance, 7-in-1 PVA, Fibre Restore).
       Minimum 4–5 per rep per month.</p>
     </div>
     <div class="gap-card">
-      <h4><span class="gap-badge">D</span> New Customer Onboarding (10%)</h4>
-      <p>Need: List of new trading customers onboarded this month per rep —
+      <h4><span class="gap-badge">E</span> New Customer Onboarding (10%)</h4>
+      <p>Need: List of new verified trading customers onboarded per rep per quarter —
       credit application completed, first invoice issued, CRM logged.
-      Minimum 2 per rep per month.</p>
+      Quarterly target: 6 = full credit, 3 = half credit.</p>
     </div>
     <div class="gap-card">
-      <h4><span class="gap-badge">E</span> Merchandising — fully scored (10%)</h4>
+      <h4><span class="gap-badge">F</span> Merchandising — fully scored (10%)</h4>
       <p>Sourced from <em>Meetings_Report_AWS_Merchandising</em> (Zoho).
-      Graded vs 15 visits / rep / month.
-      Training is no longer part of KPI E scoring — re-introduce only once a training register feed exists.</p>
+      Graded vs 15 visits / rep / month (45 / quarter).
+      Training is no longer part of KPI F scoring — re-introduce only once a training register feed exists.</p>
     </div>
     <div class="gap-card">
-      <h4><span class="gap-badge">A</span> Collections Audit (50%)</h4>
+      <h4><span class="gap-badge">A</span> Collections Audit (30%)</h4>
       <p>Need: Per-rep collections rate — which invoices have been settled within 30–60 days.
       Only settled invoices qualify for KPI A commission.
       Current data shows sales only, not settlement status.</p>
-    </div>
-    <div class="gap-card">
-      <h4><span class="gap-badge">+</span> Store Visit Counts</h4>
-      <p>QuickSight shows "No data" for store visits per sales manager.
-      This data may exist in Zoho CRM. A weekly export of visit logs per rep
-      is required to score visit frequency against call cycle targets.</p>
-    </div>
-    <div class="gap-card">
-      <h4><span class="gap-badge">+</span> Leads Created</h4>
-      <p>QuickSight shows "No data" for leads created per rep.
-      Required to measure pipeline development and new store identification
-      per the KPI framework and new store qualification SOP.</p>
-    </div>
-    <div class="gap-card">
-      <h4><span class="gap-badge">+</span> Rock Bottom per Rep</h4>
-      <p>Rock bottom % is available for some reps (AP: 8.85%, NP: 8.82%) but not all.
-      A full per-rep rock bottom % is needed to assess margin discipline per rep,
-      not just at product group level.</p>
     </div>
   </div>
 
@@ -636,8 +634,8 @@
   <strong>Olympic Paints</strong> · Weekly KPI Dashboard · Week ending 1 May 2026<br>
   Data sourced from Amazon QuickSight Weekly Sales Reports (Weekly Progress folder).<br>
   KPI scoring requires additional CRM and activity data not yet available in automated export.<br>
-  Based on: Sales Rep KPI Agreement 2025/01 — 5 weighted categories (Sales Growth 50% | CRM 20% | Product Dev 10% | New Customers 10% | Training 10%)<br>
-  Generated 08 May 2026 13:46
+  Based on: Sales Reps Incentive &amp; KPI Framework — 6 categories (Sales Growth 30% | Discount Mgmt 20% | Customer Dev 20% | Product Dev 10% | New Customers 10% | Merchandising 10%)<br>
+  Generated 08 May 2026 14:13
 </footer>
 
 <script>
