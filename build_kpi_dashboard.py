@@ -294,7 +294,7 @@ def load_leads_by_month():
             continue
         month_name, day, year, time_part = m.groups()
         try:
-            dt = datetime.strptime(f"{month_name} {day} {year} {time_part}", "%B %d %Y %H:%M:%S")
+            dt = datetime.strptime(f"{month_name} {day} {year} {time_part}", "%b %d %Y %H:%M:%S")
         except ValueError:
             continue
         out[(dt.year, dt.month)][code] += 1
