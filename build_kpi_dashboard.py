@@ -25,6 +25,7 @@ DASHBOARD       = BASE_DIR / "KPI Dashboard.html"
 INDEX           = BASE_DIR / "index.html"
 WORKSPACE_DASH  = Path(r"C:\Users\quint\workspace-dashboard")
 MERCH_FILE      = BASE_DIR.parent.parent / "3.Resources" / "16.Sales and Other data" / "Zoho" / "Meetings_Report_AWS_Merchandising.xlsx"
+LEADS_FILE      = BASE_DIR.parent.parent / "3.Resources" / "16.Sales and Other data" / "Zoho" / "OP_Lead_Tracking_new.csv"
 
 # KPI E "Merchandising" — the full 10% bucket is now scored on merchandising visits.
 # Training is excluded from scoring until a data source exists.
@@ -32,6 +33,11 @@ MERCH_FILE      = BASE_DIR.parent.parent / "3.Resources" / "16.Sales and Other d
 MERCH_TARGET_PER_MONTH       = 15        # visits per rep per month
 MERCH_WEIGHT_OF_E            = 10.0      # full 10% — training portion no longer scored
 NAME_TO_REP_CODE = {"NIKHIL":"NP","BYRON":"BM","ABOO":"AC","AMIT":"AP","BHADRESH":"BV"}
+LEAD_OWNER_TO_CODE = {
+    "aboo cassim": "AC", "amit patel": "AP", "bhadresh vallabh": "BV",
+    "nikhil panchal": "NP", "byron minnie": "BM",
+}
+KPI_B_TARGET = 5  # min leads/month — hit or miss
 MONTH_FULL_NAMES = ["January","February","March","April","May","June",
                     "July","August","September","October","November","December"]
 
@@ -198,6 +204,14 @@ def sales_color_class(pct):
     if pct >= -15:   return "amber"
     return "red"
 
+def _kpi_b_pill(count, period):
+    title = f"Customer Dev / CRM: {count} leads created in {period} (target ≥{KPI_B_TARGET})"
+    if count >= KPI_B_TARGET:
+        return f'<span class="pill green" title="{title}">✓ Hit &middot; {count} leads</span>'
+    if count > 0:
+        return f'<span class="pill red" title="{title}">✗ Miss &middot; {count}/{KPI_B_TARGET}</span>'
+    return f'<span class="pill red" title="{title}">✗ Miss &middot; 0 leads</span>'
+
 # ── MERCHANDISING DATA (KPI E — 70% of 10%) ───────────────────────────────────
 
 def load_merch_visits_by_month():
@@ -254,12 +268,66 @@ def get_merch_scoring_window():
         return f"{MONTH_FULL_NAMES[fk[1]-1]} {fk[0]}", target_label, visits[fk]
     return target_label, None, {}
 
+# ── LEADS DATA (KPI B — Customer Development & CRM) ───────────────────────────
+
+_ZOHO_DT_RE = re.compile(r"\w+\s+(\w+)\s+(\d+)\s+(\d{4})\s+(\d+:\d+:\d+)")
+
+def load_leads_by_month():
+    """Count leads per rep per month from OP_Lead_Tracking_new.csv.
+
+    Zoho exports timestamps as "Wed May 06 2026 07:57:00 GMT+0000 (...)" —
+    non-standard, so we extract MonthName Day Year HH:MM:SS with a regex.
+    Returns dict keyed by (year, month) -> {rep_code: lead_count}.
+    """
+    if not LEADS_FILE.exists():
+        return {}
+    df = pd.read_csv(LEADS_FILE)
+    out = defaultdict(lambda: defaultdict(int))
+    for _, row in df.iterrows():
+        owner = str(row.get("Lead Owner", "") or "").strip().lower()
+        code = LEAD_OWNER_TO_CODE.get(owner)
+        if not code:
+            continue
+        raw_dt = str(row.get("Created Time", "") or "")
+        m = _ZOHO_DT_RE.search(raw_dt)
+        if not m:
+            continue
+        month_name, day, year, time_part = m.groups()
+        try:
+            dt = datetime.strptime(f"{month_name} {day} {year} {time_part}", "%B %d %Y %H:%M:%S")
+        except ValueError:
+            continue
+        out[(dt.year, dt.month)][code] += 1
+    return {k: dict(v) for k, v in out.items()}
+
+
+def get_leads_scoring_window():
+    """Return (period_label, fallback_from, leads_dict).
+
+    Uses last completed calendar month. Falls back to most recent month with data.
+    """
+    leads = load_leads_by_month()
+    today = date.today()
+    last_y = today.year if today.month > 1 else today.year - 1
+    last_m = today.month - 1 if today.month > 1 else 12
+    target_key = (last_y, last_m)
+    target_label = f"{MONTH_FULL_NAMES[last_m-1]} {last_y}"
+    if leads.get(target_key):
+        return target_label, None, leads[target_key]
+    candidates = sorted([k for k in leads if k <= target_key], reverse=True)
+    if candidates:
+        fk = candidates[0]
+        return f"{MONTH_FULL_NAMES[fk[1]-1]} {fk[0]}", target_label, leads[fk]
+    return target_label, None, {}
+
+
 # ── HTML BUILD ─────────────────────────────────────────────────────────────────
 
 def build_html() -> str:
     generated = datetime.now().strftime("%d %B %Y %H:%M")
 
     merch_period, merch_fallback_from, merch_by_rep = get_merch_scoring_window()
+    leads_period, leads_fallback_from, leads_by_rep = get_leads_scoring_window()
 
     # Rep table rows
     rep_rows = ""
@@ -310,7 +378,7 @@ def build_html() -> str:
             <td>{pct_bar}</td>
             <td>{rb_cell}</td>
             <td>{kpi_a}</td>
-            <td><span class="pill neutral" title="CRM data required">⚠ No data</span></td>
+            <td>{_kpi_b_pill(leads_by_rep.get(r["code"], 0), leads_period)}</td>
             <td><span class="pill neutral" title="Product dev data required">⚠ No data</span></td>
             <td><span class="pill neutral" title="New customer data required">⚠ No data</span></td>
             <td>{kpi_e}</td>
