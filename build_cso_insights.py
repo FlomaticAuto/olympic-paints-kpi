@@ -274,3 +274,279 @@ def compute_product_mix(df: pd.DataFrame) -> dict:
             "rows": rows,
         },
     }
+
+
+def build_html(insights: list) -> str:
+    insights_json = json.dumps(insights, ensure_ascii=False)
+    today_fmt = datetime.now().strftime("%-d %B %Y") if sys.platform != "win32" else datetime.now().strftime("%#d %B %Y")
+
+    return f"""<!DOCTYPE html>
+<html lang="en" class="theme-dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSO Insights — Olympic Paints</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;700;800;900&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script>var t=localStorage.getItem('oly-theme');if(t)document.documentElement.className=t;</script>
+<style>
+/* ── RAW DESIGN TOKENS ─────────────────────────────────────────── */
+:root{{
+  --_y50:#FEF9E0;--_y100:#FDF0A0;--_y200:#FAE04D;--_y400:#F5C400;--_y600:#D4A800;--_y800:#A88000;--_y900:#6A5000;
+  --_n50:#E8EFF8;--_n100:#B8CCE8;--_n300:#6B9ED0;--_n500:#2D6BA8;--_n700:#1A3D6E;--_n900:#0D2040;--_n950:#071022;
+  --_g0:#FFFFFF;--_g50:#F7F6F3;--_g100:#E8E7E2;--_g200:#C8C7C0;--_g400:#949390;--_g600:#5C5B58;--_g800:#2E2E2C;--_g900:#1A1A18;--_g950:#0D0D0B;
+  --_teal:#2D8C7A;--_teal-light:#C8EDE7;--_teal-dark:#1a5c50;
+  --_coral:#E86060;--_coral-light:#FDDCDC;
+  --font-display:'Barlow Condensed',sans-serif;--font-body:'Barlow',sans-serif;
+  --r-sm:4px;--r-md:8px;--r-lg:12px;--r-xl:16px;--r-pill:50px;
+}}
+.theme-light{{color-scheme:light;--color-surface-page:var(--_g50);--color-surface-base:var(--_g0);--color-surface-elevated:var(--_g0);--color-surface-sunken:var(--_g100);--color-surface-overlay:rgba(0,0,0,0.04);--color-surface-brand:var(--_y400);--color-surface-secondary:var(--_n700);--color-text-primary:var(--_g950);--color-text-secondary:var(--_g600);--color-text-tertiary:var(--_g400);--color-text-on-brand:var(--_g950);--color-text-on-navy:var(--_g0);--color-brand-primary:var(--_y400);--color-brand-hover:var(--_y600);--color-brand-secondary:var(--_n700);--color-brand-accent:var(--_y400);--color-border-subtle:var(--_g100);--color-border-default:var(--_g200);--color-border-strong:var(--_g400);--color-border-brand:var(--_y400);--color-success-bg:#EDF7F5;--color-success-fg:var(--_teal-dark);--color-success-bd:var(--_teal);--color-warning-bg:var(--_y50);--color-warning-fg:var(--_y900);--color-warning-bd:var(--_y600);--color-danger-bg:#FEF2F2;--color-danger-fg:#C0392B;--color-danger-bd:var(--_coral);--color-info-bg:var(--_n50);--color-info-fg:var(--_n700);--color-info-bd:var(--_n500);--color-neutral-bg:var(--_g100);--color-neutral-fg:var(--_g600);--color-neutral-bd:var(--_g400);--shadow-sm:0 1px 3px rgba(0,0,0,0.08);--shadow-md:0 4px 12px rgba(0,0,0,0.08);--shadow-lg:0 10px 30px rgba(0,0,0,0.10);}}
+.theme-dark{{color-scheme:dark;--color-surface-page:var(--_g950);--color-surface-base:var(--_g900);--color-surface-elevated:var(--_g800);--color-surface-sunken:var(--_g950);--color-surface-overlay:rgba(255,255,255,0.04);--color-surface-brand:var(--_y400);--color-surface-secondary:var(--_n700);--color-text-primary:var(--_g100);--color-text-secondary:var(--_g400);--color-text-tertiary:var(--_g600);--color-text-on-brand:var(--_g950);--color-text-on-navy:var(--_g0);--color-brand-primary:var(--_y400);--color-brand-hover:var(--_y200);--color-brand-secondary:var(--_n700);--color-brand-accent:var(--_y400);--color-border-subtle:rgba(255,255,255,0.06);--color-border-default:rgba(255,255,255,0.10);--color-border-strong:rgba(255,255,255,0.20);--color-border-brand:var(--_y400);--color-success-bg:rgba(45,140,122,0.12);--color-success-fg:var(--_teal-light);--color-success-bd:rgba(45,140,122,0.30);--color-warning-bg:rgba(245,196,0,0.10);--color-warning-fg:var(--_y200);--color-warning-bd:rgba(245,196,0,0.25);--color-danger-bg:rgba(232,96,96,0.12);--color-danger-fg:var(--_coral-light);--color-danger-bd:rgba(232,96,96,0.30);--color-info-bg:rgba(26,61,110,0.30);--color-info-fg:var(--_n100);--color-info-bd:rgba(107,158,208,0.30);--color-neutral-bg:rgba(255,255,255,0.05);--color-neutral-fg:var(--_g400);--color-neutral-bd:rgba(255,255,255,0.10);--shadow-sm:0 1px 3px rgba(0,0,0,0.40);--shadow-md:0 4px 12px rgba(0,0,0,0.40);--shadow-lg:0 10px 30px rgba(0,0,0,0.50);}}
+.theme-brand{{color-scheme:light;--color-surface-page:var(--_y400);--color-surface-base:var(--_y200);--color-surface-elevated:var(--_y50);--color-surface-sunken:var(--_y600);--color-surface-overlay:rgba(0,0,0,0.05);--color-surface-brand:var(--_y400);--color-surface-secondary:var(--_g950);--color-text-primary:var(--_g950);--color-text-secondary:var(--_y900);--color-text-tertiary:var(--_y800);--color-text-on-brand:var(--_g950);--color-text-on-navy:var(--_g0);--color-brand-primary:var(--_g950);--color-brand-hover:var(--_n700);--color-brand-secondary:var(--_n700);--color-brand-accent:var(--_g950);--color-border-subtle:rgba(0,0,0,0.08);--color-border-default:rgba(0,0,0,0.14);--color-border-strong:rgba(0,0,0,0.25);--color-border-brand:var(--_g950);--color-success-bg:rgba(45,140,122,0.12);--color-success-fg:var(--_teal-dark);--color-success-bd:var(--_teal);--color-warning-bg:rgba(0,0,0,0.08);--color-warning-fg:var(--_y900);--color-warning-bd:var(--_y900);--color-danger-bg:rgba(232,96,96,0.12);--color-danger-fg:#C0392B;--color-danger-bd:var(--_coral);--color-info-bg:rgba(26,61,110,0.10);--color-info-fg:var(--_n900);--color-info-bd:var(--_n700);--color-neutral-bg:rgba(0,0,0,0.06);--color-neutral-fg:var(--_y900);--color-neutral-bd:rgba(0,0,0,0.15);--shadow-sm:0 1px 3px rgba(0,0,0,0.12);--shadow-md:0 4px 12px rgba(0,0,0,0.14);--shadow-lg:0 10px 30px rgba(0,0,0,0.18);}}
+.theme-navy{{color-scheme:dark;--color-surface-page:var(--_n950);--color-surface-base:var(--_n900);--color-surface-elevated:var(--_n700);--color-surface-sunken:var(--_n950);--color-surface-overlay:rgba(255,255,255,0.04);--color-surface-brand:var(--_y400);--color-surface-secondary:var(--_n700);--color-text-primary:var(--_g0);--color-text-secondary:var(--_n100);--color-text-tertiary:var(--_n300);--color-text-on-brand:var(--_g950);--color-text-on-navy:var(--_g0);--color-brand-primary:var(--_y400);--color-brand-hover:var(--_y200);--color-brand-secondary:var(--_n500);--color-brand-accent:var(--_y400);--color-border-subtle:rgba(107,158,208,0.12);--color-border-default:rgba(107,158,208,0.20);--color-border-strong:rgba(107,158,208,0.35);--color-border-brand:var(--_y400);--color-success-bg:rgba(45,140,122,0.15);--color-success-fg:var(--_teal-light);--color-success-bd:rgba(45,140,122,0.35);--color-warning-bg:rgba(245,196,0,0.12);--color-warning-fg:var(--_y200);--color-warning-bd:rgba(245,196,0,0.30);--color-danger-bg:rgba(232,96,96,0.14);--color-danger-fg:var(--_coral-light);--color-danger-bd:rgba(232,96,96,0.35);--color-info-bg:rgba(45,107,168,0.20);--color-info-fg:var(--_n100);--color-info-bd:rgba(107,158,208,0.35);--color-neutral-bg:rgba(255,255,255,0.05);--color-neutral-fg:var(--_n300);--color-neutral-bd:rgba(255,255,255,0.12);--shadow-sm:0 1px 3px rgba(0,0,0,0.50);--shadow-md:0 4px 12px rgba(0,0,0,0.50);--shadow-lg:0 10px 30px rgba(0,0,0,0.60);}}
+
+*{{box-sizing:border-box;margin:0;padding:0}}
+html,body{{height:100%;background:var(--color-surface-page);color:var(--color-text-primary);font-family:var(--font-body)}}
+
+/* ── HEADER ── */
+.site-header{{position:sticky;top:0;z-index:100;background:var(--color-surface-secondary);display:flex;align-items:center;justify-content:space-between;padding:10px 24px;gap:16px;border-bottom:1px solid var(--color-border-subtle)}}
+.header-left{{display:flex;align-items:center;gap:12px}}
+.logo-wrap{{width:48px;height:48px;border-radius:50%;overflow:hidden;flex-shrink:0}}
+.logo-wrap img{{display:block;width:100%;height:100%;object-fit:cover}}
+.site-title{{font-family:var(--font-display);font-weight:900;font-size:22px;letter-spacing:0.04em;text-transform:uppercase;color:var(--color-text-primary)}}
+.site-date{{font-size:12px;color:var(--color-text-secondary);margin-top:2px}}
+.theme-bar{{display:flex;gap:4px}}
+.theme-bar button{{font-family:var(--font-body);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;padding:5px 12px;border:1px solid var(--color-border-default);border-radius:var(--r-pill);background:transparent;color:var(--color-text-secondary);cursor:pointer;transition:all .15s}}
+.theme-bar button:hover{{border-color:var(--color-brand-primary);color:var(--color-brand-primary)}}
+.theme-bar button.active{{background:var(--color-brand-primary);border-color:var(--color-brand-primary);color:var(--color-text-on-brand)}}
+
+/* ── MAIN LAYOUT ── */
+.main{{max-width:1200px;margin:0 auto;padding:32px 24px}}
+
+/* ── GRID VIEW ── */
+.eyebrow{{font-family:var(--font-display);font-weight:700;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:var(--color-text-tertiary);margin-bottom:24px}}
+.insight-grid{{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}}
+@media(max-width:900px){{.insight-grid{{grid-template-columns:repeat(2,1fr)}}}}
+@media(max-width:560px){{.insight-grid{{grid-template-columns:1fr}}}}
+
+.insight-card{{background:var(--color-surface-base);border:1px solid var(--color-border-default);border-left:4px solid var(--color-border-brand);border-radius:var(--r-lg);padding:22px 20px;cursor:pointer;transition:transform .18s,box-shadow .18s;display:flex;flex-direction:column;gap:12px}}
+.insight-card:hover{{transform:translateY(-3px);box-shadow:var(--shadow-md)}}
+.card-icon{{width:36px;height:36px;color:var(--color-brand-primary)}}
+.card-icon svg{{width:100%;height:100%}}
+.card-title{{font-family:var(--font-display);font-weight:700;font-size:18px;color:var(--color-text-primary)}}
+.card-summary{{font-size:13px;color:var(--color-text-secondary);line-height:1.5}}
+.card-updated{{font-size:11px;color:var(--color-neutral-fg);background:var(--color-neutral-bg);border:1px solid var(--color-neutral-bd);border-radius:var(--r-pill);padding:3px 10px;align-self:flex-start}}
+
+/* ── DETAIL VIEW ── */
+#detail-view{{display:none}}
+.back-btn{{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-body);font-size:13px;font-weight:600;color:var(--color-brand-primary);background:none;border:none;cursor:pointer;padding:0;margin-bottom:24px;transition:opacity .15s}}
+.back-btn:hover{{opacity:.7}}
+.detail-title{{font-family:var(--font-display);font-weight:900;font-size:40px;text-transform:uppercase;letter-spacing:0.02em;color:var(--color-text-primary);margin-bottom:8px}}
+.detail-updated{{font-size:12px;color:var(--color-text-tertiary);margin-bottom:32px}}
+.detail-section{{background:var(--color-surface-base);border:1px solid var(--color-border-default);border-radius:var(--r-lg);padding:24px;margin-bottom:20px}}
+.section-heading{{font-family:var(--font-display);font-weight:800;font-size:13px;text-transform:uppercase;letter-spacing:0.10em;color:var(--color-text-tertiary);margin-bottom:14px}}
+.analysis-text{{font-size:14px;color:var(--color-text-secondary);line-height:1.7}}
+.chart-wrap{{position:relative;height:340px;margin-top:8px}}
+
+/* ── TABLE ── */
+.tbl-filter{{width:100%;padding:8px 12px;font-family:var(--font-body);font-size:13px;border:1px solid var(--color-border-default);border-radius:var(--r-md);background:var(--color-surface-sunken);color:var(--color-text-primary);margin-bottom:12px;outline:none}}
+.tbl-filter:focus{{border-color:var(--color-border-brand)}}
+.tbl-wrap{{overflow-x:auto}}
+table{{width:100%;border-collapse:collapse;font-size:13px}}
+thead th{{font-family:var(--font-display);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--color-text-tertiary);text-align:left;padding:10px 12px;border-bottom:1px solid var(--color-border-default);position:sticky;top:0;background:var(--color-surface-base)}}
+tbody tr:nth-child(even){{background:var(--color-surface-sunken)}}
+tbody td{{padding:9px 12px;color:var(--color-text-secondary);border-bottom:1px solid var(--color-border-subtle)}}
+tbody tr:hover td{{color:var(--color-text-primary)}}
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-left">
+    <div class="logo-wrap">
+      <img src="logo.jpg" alt="Olympic Paints" width="48" height="48">
+    </div>
+    <div>
+      <div class="site-title">CSO Insights</div>
+      <div class="site-date">{today_fmt}</div>
+    </div>
+  </div>
+  <div class="theme-bar">
+    <button onclick="olyTheme('theme-light',this)">Light</button>
+    <button onclick="olyTheme('theme-dark',this)" class="active">Dark</button>
+    <button onclick="olyTheme('theme-brand',this)">Brand</button>
+    <button onclick="olyTheme('theme-navy',this)">Navy</button>
+  </div>
+</header>
+
+<main class="main">
+
+  <!-- GRID VIEW -->
+  <div id="grid-view">
+    <div class="eyebrow">Insights</div>
+    <div class="insight-grid" id="insight-grid"></div>
+  </div>
+
+  <!-- DETAIL VIEW -->
+  <div id="detail-view">
+    <button class="back-btn" onclick="showGrid()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      Back to Insights
+    </button>
+    <div class="detail-title" id="detail-title"></div>
+    <div class="detail-updated" id="detail-updated"></div>
+    <div class="detail-section">
+      <div class="section-heading">Analysis</div>
+      <div class="analysis-text" id="detail-analysis"></div>
+    </div>
+    <div class="detail-section">
+      <div class="section-heading">Chart</div>
+      <div class="chart-wrap"><canvas id="detail-chart"></canvas></div>
+    </div>
+    <div class="detail-section">
+      <div class="section-heading">Data</div>
+      <input class="tbl-filter" id="tbl-filter" type="text" placeholder="Filter rows…" oninput="filterTable()">
+      <div class="tbl-wrap"><table id="detail-table"><thead id="tbl-head"></thead><tbody id="tbl-body"></tbody></table></div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+const OLY_THEMES=['theme-light','theme-dark','theme-brand','theme-navy'];
+function olyTheme(t,btn){{
+  document.documentElement.classList.remove(...OLY_THEMES);
+  document.documentElement.classList.add(t);
+  localStorage.setItem('oly-theme',t);
+  document.querySelectorAll('.theme-bar button').forEach(b=>b.classList.toggle('active',b===btn));
+}}
+
+// ── DATA ──────────────────────────────────────────────────────────
+const INSIGHTS = {insights_json};
+
+// ── barLabels plugin ──────────────────────────────────────────────
+const _lblMap = new Map();
+const barLabels = {{
+  id:'barLabels',
+  afterDatasetsDraw(chart){{
+    const{{ctx,data}}=chart;
+    chart.data.datasets.forEach((ds,di)=>{{
+      const meta=chart.getDatasetMeta(di);
+      meta.data.forEach((bar,i)=>{{
+        const cfg=_lblMap.get(`${{di}}-${{i}}`);
+        if(!cfg)return;
+        const{{x,y,width,height}}=bar.getProps(['x','y','width','height'],true);
+        ctx.save();
+        ctx.font=`600 11px 'Barlow',sans-serif`;
+        ctx.textAlign='center';
+        ctx.textBaseline='middle';
+        ctx.fillStyle=cfg.color||'#fff';
+        ctx.fillText(cfg.text,cfg.inside?x:x,cfg.inside?y+height/2:y-8);
+        ctx.restore();
+      }});
+    }});
+  }}
+}};
+Chart.register(barLabels);
+
+// ── CHART INSTANCE ────────────────────────────────────────────────
+let _chart = null;
+
+function renderChart(insight){{
+  if(_chart){{ _chart.destroy(); _chart=null; }}
+  _lblMap.clear();
+  const canvas=document.getElementById('detail-chart');
+  const cfg=insight.chart;
+  const opts={{
+    responsive:true,maintainAspectRatio:false,
+    plugins:{{legend:{{labels:{{color:'var(--color-text-secondary)',font:{{family:'Barlow',size:12}}}}}},tooltip:{{callbacks:{{label:ctx=>` ${{ctx.dataset.label}}: ${{ctx.parsed.y??ctx.parsed.x}}`}}}}}},
+    scales:{{
+      x:{{ticks:{{color:'var(--color-text-tertiary)',font:{{family:'Barlow',size:11}}}},grid:{{color:'var(--color-border-subtle)'}}}},
+      y:{{ticks:{{color:'var(--color-text-tertiary)',font:{{family:'Barlow',size:11}}}},grid:{{color:'var(--color-border-subtle)'}}}},
+    }},
+    ...cfg.options
+  }};
+  _chart=new Chart(canvas,{{type:cfg.type,data:{{labels:cfg.labels,datasets:cfg.datasets}},options:opts}});
+}}
+
+// ── TABLE ─────────────────────────────────────────────────────────
+let _allRows=[];
+function renderTable(insight){{
+  const{{columns,rows}}=insight.table;
+  _allRows=rows;
+  const head=document.getElementById('tbl-head');
+  const body=document.getElementById('tbl-body');
+  head.innerHTML='<tr>'+columns.map(c=>`<th>${{c.label}}</th>`).join('')+'</tr>';
+  document.getElementById('tbl-filter').value='';
+  paintRows(rows,columns);
+}}
+function paintRows(rows,columns){{
+  columns=columns||window._curInsight.table.columns;
+  document.getElementById('tbl-body').innerHTML=rows.map(r=>
+    '<tr>'+columns.map(c=>`<td>${{r[c.key]??''}}</td>`).join('')+'</tr>'
+  ).join('');
+}}
+function filterTable(){{
+  const q=document.getElementById('tbl-filter').value.toLowerCase();
+  const cols=window._curInsight.table.columns;
+  const filtered=_allRows.filter(r=>cols.some(c=>String(r[c.key]||'').toLowerCase().includes(q)));
+  paintRows(filtered,cols);
+}}
+
+// ── NAVIGATION ────────────────────────────────────────────────────
+function showGrid(){{
+  document.getElementById('grid-view').style.display='';
+  document.getElementById('detail-view').style.display='none';
+  history.pushState(null,'',location.pathname);
+}}
+
+function showDetail(id){{
+  const insight=INSIGHTS.find(i=>i.id===id);
+  if(!insight)return;
+  window._curInsight=insight;
+  document.getElementById('grid-view').style.display='none';
+  document.getElementById('detail-view').style.display='';
+  document.getElementById('detail-title').textContent=insight.title;
+  document.getElementById('detail-updated').textContent='Last updated: '+insight.updated;
+  document.getElementById('detail-analysis').innerHTML=insight.analysis;
+  renderChart(insight);
+  renderTable(insight);
+  history.pushState({{id}},'','#'+id);
+  window.scrollTo(0,0);
+}}
+
+window.addEventListener('popstate',e=>{{
+  if(e.state&&e.state.id) showDetail(e.state.id);
+  else showGrid();
+}});
+
+// ── GRID RENDER ───────────────────────────────────────────────────
+function renderGrid(){{
+  const grid=document.getElementById('insight-grid');
+  grid.innerHTML=INSIGHTS.map(i=>`
+    <div class="insight-card" onclick="showDetail('${{i.id}}')">
+      <div class="card-icon">${{i.icon}}</div>
+      <div class="card-title">${{i.title}}</div>
+      <div class="card-summary">${{i.summary}}</div>
+      <div class="card-updated">Updated ${{i.updated}}</div>
+    </div>
+  `).join('');
+}}
+
+// ── INIT ──────────────────────────────────────────────────────────
+renderGrid();
+const initHash=location.hash.slice(1);
+if(initHash)showDetail(initHash);
+
+// Sync active theme button on load
+(function(){{
+  const t=document.documentElement.className;
+  document.querySelectorAll('.theme-bar button').forEach(b=>{{
+    b.classList.toggle('active',('theme-'+b.textContent.toLowerCase())===t||b.textContent.toLowerCase()===t.replace('theme-',''));
+  }});
+}})();
+</script>
+</body>
+</html>"""
