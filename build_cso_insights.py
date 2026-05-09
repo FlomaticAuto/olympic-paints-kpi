@@ -187,3 +187,90 @@ def build_rep_performance() -> dict:
             "rows": rows,
         },
     }
+
+
+# Multi-series chart colours — Olympic Paints design system order
+_CHART_COLOURS = ["#F5C400","#1A3D6E","#2D8C7A","#C97A3A","#E87BAD","#9B7DBF","#5C6B7A"]
+
+def compute_product_mix(df: pd.DataFrame) -> dict:
+    """Revenue by category_l1 (product group) for current FY, with YoY comparison."""
+    current_fy = df["fy"].max()
+    prev_fy    = current_fy - 1
+
+    def rev_by_group(frame):
+        return (
+            frame.groupby("category_l1")["ivnett"]
+            .sum()
+            .reset_index()
+            .rename(columns={"ivnett": "revenue"})
+        )
+
+    cur  = rev_by_group(df[df["fy"] == current_fy])
+    prev = rev_by_group(df[df["fy"] == prev_fy])
+
+    merged = cur.merge(prev, on="category_l1", suffixes=("_cur", "_prev"), how="left")
+    merged["revenue_prev"] = merged["revenue_prev"].fillna(0)
+    merged["yoy_pct"] = (
+        (merged["revenue_cur"] - merged["revenue_prev"])
+        / merged["revenue_prev"].replace(0, float("nan"))
+        * 100
+    ).round(1)
+    merged["mix_pct"] = (merged["revenue_cur"] / merged["revenue_cur"].sum() * 100).round(1)
+    merged = merged.sort_values("revenue_cur", ascending=False)
+
+    labels   = merged["category_l1"].tolist()
+    revenues = [round(v / 1_000_000, 2) for v in merged["revenue_cur"]]
+    colours  = [_CHART_COLOURS[i % len(_CHART_COLOURS)] for i in range(len(labels))]
+
+    rows = [
+        {
+            "group":   r["category_l1"],
+            "revenue": f"R {r['revenue_cur']:,.0f}",
+            "mix_pct": f"{r['mix_pct']:.1f}%",
+            "yoy":     (
+                f'<span style="color:var(--color-success-fg)">+{r["yoy_pct"]:.1f}%</span>'
+                if r["yoy_pct"] > 0
+                else f'<span style="color:var(--color-danger-fg)">{r["yoy_pct"]:.1f}%</span>'
+            ) if not pd.isna(r["yoy_pct"]) else "—",
+        }
+        for _, r in merged.iterrows()
+    ]
+
+    top_group = merged.iloc[0]
+
+    return {
+        "id": "product-mix",
+        "title": "Product Mix",
+        "summary": "Revenue by product group — current financial year",
+        "updated": REPORT_DATE,
+        "icon": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 118 2.83"/><path d="M22 12A10 10 0 0012 2v10z"/></svg>',
+        "analysis": (
+            f"Revenue breakdown by product group for FY{current_fy}. "
+            f"<strong>{top_group['category_l1']}</strong> is the largest category at "
+            f"<strong>{top_group['mix_pct']:.1f}%</strong> of total revenue. "
+            f"YoY change compares the same financial year period against FY{prev_fy}. "
+            f"Groups with negative YoY growth warrant attention from the sales and product teams."
+        ),
+        "chart": {
+            "type": "bar",
+            "options": {},
+            "labels": labels,
+            "datasets": [
+                {
+                    "label": f"FY{current_fy} Revenue (R millions)",
+                    "data": revenues,
+                    "backgroundColor": colours,
+                    "borderRadius": 4,
+                }
+            ],
+        },
+        "table": {
+            "columns": [
+                {"key": "group",   "label": "Product Group"},
+                {"key": "revenue", "label": "Revenue (NET)"},
+                {"key": "mix_pct", "label": "% of Mix"},
+                {"key": "yoy",     "label": "YoY Change"},
+            ],
+            "rows": rows,
+        },
+    }
