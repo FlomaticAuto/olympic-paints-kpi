@@ -70,19 +70,24 @@ def compute_store_buying_frequency(df: pd.DataFrame) -> dict:
         for _, r in orders.iterrows()
     ]
 
+    if orders.empty:
+        analysis_text = "No store order data available for the last 12 months."
+    else:
+        analysis_text = (
+            f"The top 20 stores by order frequency over the last 12 months are shown below. "
+            f"<strong>{orders.iloc[0]['store_name']}</strong> leads with "
+            f"<strong>{int(orders.iloc[0]['order_count'])} orders</strong>. "
+            f"High-frequency buyers represent your most reliable revenue base — "
+            f"stores ordering more than once a month warrant priority service attention."
+        )
+
     return {
         "id": "store-buying-frequency",
         "title": "Store Buying Frequency",
         "summary": "How often each store places orders (last 12 months)",
         "updated": REPORT_DATE,
         "icon": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>',
-        "analysis": (
-            f"The top 20 stores by order frequency over the last 12 months are shown below. "
-            f"<strong>{orders.iloc[0]['store_name']}</strong> leads with "
-            f"<strong>{int(orders.iloc[0]['order_count'])} orders</strong>. "
-            f"High-frequency buyers represent your most reliable revenue base — "
-            f"stores ordering more than once a month warrant priority service attention."
-        ),
+        "analysis": analysis_text,
         "chart": {
             "type": "bar",
             "options": {"indexAxis": "y"},
