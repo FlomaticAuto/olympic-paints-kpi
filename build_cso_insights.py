@@ -550,3 +550,76 @@ if(initHash)showDetail(initHash);
 </script>
 </body>
 </html>"""
+
+
+def _flomatic_token() -> str | None:
+    try:
+        r = subprocess.run(
+            ["gh", "auth", "token", "--user", "FlomaticAuto"],
+            capture_output=True, text=True, shell=True,
+        )
+        token = r.stdout.strip()
+        if r.returncode == 0 and token.startswith("gho_"):
+            return token
+    except Exception as e:
+        print(f"  [WARN] could not get FlomaticAuto token: {e}")
+    return None
+
+
+def git_push(path: Path) -> None:
+    cwd = str(path)
+    msg = f"CSO Insights update — {REPORT_DATE} — {datetime.now().strftime('%H:%M')}"
+    token = _flomatic_token()
+
+    def run(cmd):
+        r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+        if r.returncode != 0:
+            err = r.stderr.strip()
+            if token:
+                err = err.replace(token, "***")
+            print(f"  [WARN] {' '.join(cmd[:3])}: {err}")
+        return r.returncode == 0
+
+    run(["git", "init"])
+    run(["git", "config", "user.email", "auto@olympic-paints.local"])
+    run(["git", "config", "user.name",  "Olympic CSO Bot"])
+    run(["git", "checkout", "-B", "main"])
+    run(["git", "add", "index.html", "logo.jpg"])
+    run(["git", "commit", "-m", msg])
+
+    remote = f"https://FlomaticAuto:{token}@github.com/FlomaticAuto/olympic-paints-cso-insights.git" if token else REPO_URL
+    ok = run(["git", "push", remote, "main", "--force"])
+    if ok:
+        print("  ✓ Pushed to GitHub")
+
+
+def main() -> None:
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M')}] Building CSO Insights...")
+
+    OUT_DIR.mkdir(exist_ok=True)
+    shutil.copy2(LOGO_SRC, OUT_DIR / "logo.jpg")
+    print("  ✓ Logo copied")
+
+    print("  Reading parquet...")
+    df = pd.read_parquet(PARQUET)
+
+    print("  Computing insights...")
+    insights = [
+        compute_store_buying_frequency(df),
+        build_rep_performance(),
+        compute_product_mix(df),
+    ]
+
+    html = build_html(insights)
+    OUT_HTML.write_text(html, encoding="utf-8")
+    print(f"  ✓ Written {OUT_HTML}")
+
+    print("  Pushing to GitHub...")
+    git_push(OUT_DIR)
+    print("Done.")
+
+
+if __name__ == "__main__":
+    main()
