@@ -112,3 +112,78 @@ def compute_store_buying_frequency(df: pd.DataFrame) -> dict:
             "rows": rows,
         },
     }
+
+
+def build_rep_performance() -> dict:
+    """Rep MTD performance vs target — sourced from REPS in build_kpi_dashboard.py."""
+    reps_with_target = [r for r in REPS if r["target"] is not None]
+
+    labels  = [r["name"] for r in reps_with_target]
+    actuals = [round(r["sales"] / 1_000_000, 2) for r in reps_with_target]
+    targets = [round(r["target"] / 1_000_000, 2) for r in reps_with_target]
+
+    def status(pct):
+        if pct is None:
+            return "—"
+        if pct >= 0:
+            return f'<span style="color:var(--color-success-fg)">+{pct:.1f}%</span>'
+        return f'<span style="color:var(--color-danger-fg)">{pct:.1f}%</span>'
+
+    rows = [
+        {
+            "rep":    r["name"],
+            "sales":  f"R {r['sales']:,.0f}",
+            "target": f"R {r['target']:,.0f}" if r["target"] else "—",
+            "pct":    status(r["pct"]),
+        }
+        for r in REPS
+    ]
+
+    leaders = [r for r in reps_with_target if (r["pct"] or 0) > 0]
+    leader_text = (
+        f"<strong>{leaders[0]['name']}</strong> leads at "
+        f"<strong>+{leaders[0]['pct']:.1f}%</strong> above target"
+        if leaders else "No rep is currently above target"
+    )
+
+    return {
+        "id": "rep-performance",
+        "title": "Rep Performance",
+        "summary": f"MTD sales vs target — {REPORT_WEEK}",
+        "updated": REPORT_DATE,
+        "icon": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
+        "analysis": (
+            f"MTD sales performance for week ending <strong>{REPORT_WEEK}</strong>. "
+            f"{leader_text}. "
+            f"Reps below target require pipeline review — cross-reference outstanding orders "
+            f"and last customer contact dates in Zoho."
+        ),
+        "chart": {
+            "type": "bar",
+            "options": {},
+            "labels": labels,
+            "datasets": [
+                {
+                    "label": "Actual (R millions)",
+                    "data": actuals,
+                    "backgroundColor": "#F5C400",
+                    "borderRadius": 4,
+                },
+                {
+                    "label": "Target (R millions)",
+                    "data": targets,
+                    "backgroundColor": "#1A3D6E",
+                    "borderRadius": 4,
+                },
+            ],
+        },
+        "table": {
+            "columns": [
+                {"key": "rep",    "label": "Rep"},
+                {"key": "sales",  "label": "MTD Sales"},
+                {"key": "target", "label": "Target"},
+                {"key": "pct",    "label": "% vs Target"},
+            ],
+            "rows": rows,
+        },
+    }
