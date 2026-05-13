@@ -542,8 +542,8 @@ def build_html() -> str:
   <div class="card full">
     <div class="card-title">Merchandising Achievement &mdash; {merch_period}</div>
     <div class="card-sub">
-      Source: <em>Meetings_Report_Merchandising</em> (direct Zoho REST API) &middot; target: {MERCH_TARGET_PER_MONTH} visits / rep / month &middot;
-      <strong>Graded scoring:</strong> score = min(visits/target, 1) × 10% &middot; full 10% of KPI F (training excluded){fallback_note}
+      Source: <em>formal merch visits</em> (Tag = "Merchandising Visit") + <em>lead surveys</em> (Lead_Quality graded), both pulled from Zoho REST API &middot; target: {MERCH_TARGET_PER_MONTH} activities / rep / month &middot;
+      <strong>Graded scoring:</strong> score = min(activity/target, 1) × 10% &middot; full 10% of KPI F (training excluded){fallback_note}
     </div>
     <div class="tw" style="margin-top:14px">
       <table>
