@@ -24,7 +24,7 @@ WEEKLY_DIR      = BASE_DIR.parent.parent / "1.Projects" / "KPI Report" / "Weekly
 DASHBOARD       = BASE_DIR / "KPI Dashboard.html"
 INDEX           = BASE_DIR / "index.html"
 WORKSPACE_DASH  = Path(r"C:\Users\quint\workspace-dashboard")
-MERCH_FILE      = BASE_DIR.parent.parent / "3.Resources" / "16.Sales and Other data" / "Zoho" / "Meetings_Report_AWS_Merchandising.xlsx"
+MERCH_FILE      = BASE_DIR / "zoho_meetings" / "data" / "Meetings_Report_Merchandising.xlsx"  # Migrated 2026-05-13 from Zoho/Meetings_Report_AWS_Merchandising.xlsx (now direct Zoho REST API)
 LEADS_FILE      = BASE_DIR.parent.parent / "3.Resources" / "16.Sales and Other data" / "Zoho" / "OP_Lead_Tracking_new.csv"
 
 # KPI F "Merchandising" — the full 10% bucket is now scored on merchandising visits.
@@ -452,7 +452,7 @@ def build_html() -> str:
   <div class="card full">
     <div class="card-title">Merchandising Achievement &mdash; {merch_period}</div>
     <div class="card-sub">
-      Source: <em>Meetings_Report_AWS_Merchandising</em> (Zoho export) &middot; target: {MERCH_TARGET_PER_MONTH} visits / rep / month &middot;
+      Source: <em>Meetings_Report_Merchandising</em> (direct Zoho REST API) &middot; target: {MERCH_TARGET_PER_MONTH} visits / rep / month &middot;
       <strong>Graded scoring:</strong> score = min(visits/target, 1) × 10% &middot; full 10% of KPI F (training excluded){fallback_note}
     </div>
     <div class="tw" style="margin-top:14px">
@@ -938,7 +938,7 @@ def build_html() -> str:
     </div>
     <div class="gap-card">
       <h4><span class="gap-badge">F</span> Merchandising — fully scored (10%)</h4>
-      <p>Sourced from <em>Meetings_Report_AWS_Merchandising</em> (Zoho).
+      <p>Sourced from <em>Meetings_Report_Merchandising</em> (direct Zoho REST API).
       Graded vs 15 visits / rep / month (45 / quarter).
       Training is no longer part of KPI F scoring — re-introduce only once a training register feed exists.</p>
     </div>
