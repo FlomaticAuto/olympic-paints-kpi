@@ -270,26 +270,108 @@ def load_merch_visits_by_month():
     return {k: dict(v) for k, v in out.items()}
 
 
+def load_lead_surveys_by_month():
+    """Count prospect-store surveys per rep per month from leads.parquet.
+
+    A "lead survey" is a Lead record where Lead_Quality has been graded
+    (Good / Medium / Bad). That's the explicit "rep assessed this prospect store"
+    action — separate from lead creation (which Lelani does as recon) and from
+    formal Merchandising Visit events.
+
+    Bucketed by Modified_Time (when the grade was set), not Created_Time.
+    Returns dict keyed by (year, month) -> {rep_code: survey_count}.
+    """
+    leads_pq = BASE_DIR / "zoho_meetings" / "data" / "leads.parquet"
+    if not leads_pq.exists():
+        return {}
+    df = pd.read_parquet(leads_pq)
+    if "Lead_Quality" not in df.columns or "Owner_name" not in df.columns:
+        return {}
+
+    def _qual(v):
+        if isinstance(v, dict):
+            return v.get("name") or v.get("display_value")
+        if v is None or v == "":
+            return None
+        try:
+            if pd.isna(v):
+                return None
+        except (TypeError, ValueError):
+            pass
+        return str(v)
+
+    graded = df.copy()
+    graded["_q"] = graded["Lead_Quality"].apply(_qual)
+    graded = graded[graded["_q"].notna()]
+    if not len(graded):
+        return {}
+    graded["Modified_Time"] = pd.to_datetime(graded["Modified_Time"], errors="coerce", utc=True)
+    graded = graded[graded["Modified_Time"].notna()].copy()
+
+    out = defaultdict(lambda: defaultdict(int))
+    for _, row in graded.iterrows():
+        owner_first = str(row["Owner_name"]).strip().split()[0].upper() if row["Owner_name"] else ""
+        code = NAME_TO_REP_CODE.get(owner_first)
+        if not code:
+            continue
+        dt = row["Modified_Time"]
+        out[(dt.year, dt.month)][code] += 1
+    return {k: dict(v) for k, v in out.items()}
+
+
+def _merge_counts(a: dict, b: dict) -> dict:
+    """Merge two {rep_code: count} dicts by summing values."""
+    out = dict(a)
+    for k, v in b.items():
+        out[k] = out.get(k, 0) + v
+    return out
+
+
 def get_merch_scoring_window():
-    """Return (period_label, fallback_from, visits_dict).
+    """Return (period_label, fallback_from, visits_dict, breakdown_dict).
+
+    Combines two merch activity streams:
+      • Tag="Merchandising Visit" Event records (formal visits, ~87)
+      • Leads where Lead_Quality has been graded (prospect surveys, ~95)
 
     Default window = last completed calendar month. If that month has no logged
-    visits across any rep (likely incomplete export), fall back to the most recent
-    month that does have data and surface that fact via fallback_from.
+    activity from any rep across either stream, fall back to the most recent
+    month that does have data.
+
+    Returns:
+        period_label   : month being scored (e.g. 'April 2026')
+        fallback_from  : label of month requested if we fell back, else None
+        combined_by_rep: {rep_code: visits + surveys}
+        breakdown      : {rep_code: {'visits': N, 'surveys': N}}
     """
     visits = load_merch_visits_by_month()
+    surveys = load_lead_surveys_by_month()
+
     today = date.today()
     last_y = today.year if today.month > 1 else today.year - 1
     last_m = today.month - 1 if today.month > 1 else 12
     target_key = (last_y, last_m)
     target_label = f"{MONTH_FULL_NAMES[last_m-1]} {last_y}"
-    if visits.get(target_key):
-        return target_label, None, visits[target_key]
-    candidates = sorted([k for k in visits if k <= target_key], reverse=True)
+
+    def _at(key):
+        v = visits.get(key, {})
+        s = surveys.get(key, {})
+        combined = _merge_counts(v, s)
+        breakdown = {code: {"visits": v.get(code, 0), "surveys": s.get(code, 0)}
+                     for code in set(v) | set(s)}
+        return combined, breakdown
+
+    combined, breakdown = _at(target_key)
+    if combined:
+        return target_label, None, combined, breakdown
+
+    all_keys = sorted(set(visits) | set(surveys), reverse=True)
+    candidates = [k for k in all_keys if k <= target_key]
     if candidates:
         fk = candidates[0]
-        return f"{MONTH_FULL_NAMES[fk[1]-1]} {fk[0]}", target_label, visits[fk]
-    return target_label, None, {}
+        combined, breakdown = _at(fk)
+        return f"{MONTH_FULL_NAMES[fk[1]-1]} {fk[0]}", target_label, combined, breakdown
+    return target_label, None, {}, {}
 
 # ── LEADS DATA (KPI B — Customer Development & CRM) ───────────────────────────
 
@@ -349,7 +431,7 @@ def get_leads_scoring_window():
 def build_html() -> str:
     generated = datetime.now().strftime("%d %B %Y %H:%M")
 
-    merch_period, merch_fallback_from, merch_by_rep = get_merch_scoring_window()
+    merch_period, merch_fallback_from, merch_by_rep, merch_breakdown = get_merch_scoring_window()
     leads_period, leads_fallback_from, leads_by_rep = get_leads_scoring_window()
 
     # Rep table rows
@@ -380,12 +462,15 @@ def build_html() -> str:
         else:
             kpi_a = f'<span class="pill red">✗ {pct_str(yoy)} YOY</span>'
 
-        # KPI F (Merchandising) — graded score from Zoho meetings export.
-        # Score = min(visits/target, 1) × 10%. Training is no longer scored.
+        # KPI F (Merchandising) — graded score from formal merch visits + lead surveys.
+        # Score = min(activity/target, 1) × 10%. Training is no longer scored.
         merch_count   = merch_by_rep.get(r["code"], 0)
         merch_pct     = min(merch_count / MERCH_TARGET_PER_MONTH, 1.0) * 100  # achievement %
         merch_score   = round(min(merch_count / MERCH_TARGET_PER_MONTH, 1.0) * MERCH_WEIGHT_OF_F, 1)
-        merch_title   = f"Merchandising: {merch_count}/{MERCH_TARGET_PER_MONTH} visits in {merch_period} → {merch_pct:.0f}% of target → {merch_score:.1f} of 10 pts"
+        _brk          = merch_breakdown.get(r["code"], {"visits": 0, "surveys": 0})
+        merch_title   = (f"Merchandising: {merch_count}/{MERCH_TARGET_PER_MONTH} total in {merch_period} "
+                         f"({_brk['visits']} visits + {_brk['surveys']} lead surveys) "
+                         f"→ {merch_pct:.0f}% of target → {merch_score:.1f} of 10 pts")
         if merch_pct >= 100:
             kpi_f = f'<span class="pill green" title="{merch_title}">✓ {merch_pct:.0f}% &middot; {merch_count}/{MERCH_TARGET_PER_MONTH}</span>'
         elif merch_pct >= 50:
@@ -413,11 +498,14 @@ def build_html() -> str:
     # Graded scoring: score_earned = min(visits/target, 1) × 10% (full bucket, training excluded).
     merch_rows_html = ""
     team_visits = 0
+    team_surveys = 0
     team_target = MERCH_TARGET_PER_MONTH * len(REPS)
     team_score_earned = 0.0
     for r in REPS:
         c = merch_by_rep.get(r["code"], 0)
-        team_visits += c
+        brk = merch_breakdown.get(r["code"], {"visits": 0, "surveys": 0})
+        team_visits  += brk["visits"]
+        team_surveys += brk["surveys"]
         ach_ratio  = min(c / MERCH_TARGET_PER_MONTH, 1.0)
         ach_pct    = ach_ratio * 100
         score_earned = round(ach_ratio * MERCH_WEIGHT_OF_F, 1)
@@ -431,16 +519,18 @@ def build_html() -> str:
         else:
             pill_cls, pill_lbl = "red", f"✗ {ach_pct:.0f}%"
             bar_color = "var(--red)"
+        breakdown_html = f"<div style='font-size:11px;color:var(--muted);margin-top:2px'>{brk['visits']} visits &middot; {brk['surveys']} lead surveys</div>"
         merch_rows_html += f"""
           <tr>
             <td><strong>{r["code"]}</strong> &mdash; {r["name"]}</td>
-            <td style="text-align:right;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:18px">{c}</td>
+            <td style="text-align:right;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:18px">{c}{breakdown_html}</td>
             <td style="text-align:right;color:var(--muted)">{MERCH_TARGET_PER_MONTH}</td>
             <td style="min-width:120px"><div style="background:#e8e7e2;border-radius:4px;height:8px;overflow:hidden"><div style="width:{ach_pct:.0f}%;height:100%;background:{bar_color}"></div></div><div style="font-size:11px;color:var(--muted);margin-top:3px">{ach_pct:.0f}% of target</div></td>
             <td><span class="pill {pill_cls}">{pill_lbl}</span></td>
             <td style="text-align:right;font-family:'Barlow Condensed',sans-serif;font-weight:700">{score_earned:.1f}% / {MERCH_WEIGHT_OF_F:.0f}%</td>
           </tr>"""
-    overall_pct = round(team_visits / team_target * 100) if team_target else 0
+    team_visits_total = team_visits + team_surveys  # for the "Team N%" pill
+    overall_pct = round(team_visits_total / team_target * 100) if team_target else 0
     avg_score   = round(team_score_earned / len(REPS), 1) if REPS else 0.0
     if overall_pct >= 100: overall_pill, overall_lbl = "green", f"✓ Team {overall_pct}%"
     elif overall_pct >= 50: overall_pill, overall_lbl = "amber", f"⚠ Team {overall_pct}%"
