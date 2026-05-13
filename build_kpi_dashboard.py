@@ -25,7 +25,7 @@ DASHBOARD       = BASE_DIR / "KPI Dashboard.html"
 INDEX           = BASE_DIR / "index.html"
 WORKSPACE_DASH  = Path(r"C:\Users\quint\workspace-dashboard")
 MERCH_FILE      = BASE_DIR / "zoho_meetings" / "data" / "Meetings_Report_Merchandising.xlsx"  # Migrated 2026-05-13 from Zoho/Meetings_Report_AWS_Merchandising.xlsx (now direct Zoho REST API)
-LEADS_FILE      = BASE_DIR.parent.parent / "3.Resources" / "16.Sales and Other data" / "Zoho" / "OP_Lead_Tracking_new.csv"
+LEADS_FILE      = BASE_DIR / "zoho_meetings" / "data" / "OP_Lead_Tracking_new.csv"  # Migrated 2026-05-13 from Zoho/OP_Lead_Tracking_new.csv (now direct Zoho REST API)
 
 # KPI F "Merchandising" — the full 10% bucket is now scored on merchandising visits.
 # Training is excluded from scoring until a data source exists.
