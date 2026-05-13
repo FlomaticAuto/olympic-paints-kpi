@@ -275,8 +275,7 @@ def load_lead_surveys_by_month():
 
     A "lead survey" is a Lead record where Lead_Quality has been graded
     (Good / Medium / Bad). That's the explicit "rep assessed this prospect store"
-    action — separate from lead creation (which Lelani does as recon) and from
-    formal Merchandising Visit events.
+    action — separate from lead creation and from formal Merchandising Visit events.
 
     Bucketed by Modified_Time (when the grade was set), not Created_Time.
     Returns dict keyed by (year, month) -> {rep_code: survey_count}.
